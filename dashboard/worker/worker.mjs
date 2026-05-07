@@ -359,8 +359,9 @@ async function handleJob(job) {
       steps.push(`git -C ${JSON.stringify(repoDir)} pull --ff-only`);
       steps.push(`git -C ${JSON.stringify(repoDir)} rev-parse --short HEAD || true`);
     }
-    steps.push(`docker compose pull`);
-    steps.push(`docker compose up -d --remove-orphans --build`);
+    // Ensure the worker doesn't require buildx/Bake support inside its image.
+    steps.push(`COMPOSE_BAKE=0 docker compose pull`);
+    steps.push(`COMPOSE_BAKE=0 docker compose up -d --remove-orphans --build`);
     const logs = [];
     let ok = true;
     for (const step of steps) {

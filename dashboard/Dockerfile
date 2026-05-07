@@ -20,8 +20,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Used by the in-app redeploy runner (worker) to `git pull` and run `docker compose`
 # against the host Docker daemon via the mounted `/var/run/docker.sock`.
-# Note: `docker-cli-compose` provides the `docker compose` plugin on Alpine.
-RUN apk add --no-cache git docker-cli docker-cli-compose
+# Note:
+# - `docker-cli-compose` provides the `docker compose` plugin on Alpine.
+# - `docker-cli-buildx` avoids Compose "Bake" warnings and enables modern builds when needed.
+RUN apk add --no-cache git docker-cli docker-cli-compose docker-cli-buildx
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next

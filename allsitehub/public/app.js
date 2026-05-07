@@ -80,14 +80,56 @@ function getCycleBaseDate(now = new Date()) {
 function getCycleMonthWeek(epochSec, baseDate = getCycleBaseDate()) {
   const d = new Date(Number(epochSec ?? 0) * 1000);
   if (Number.isNaN(d.getTime())) return { month: 1, week: 1, termIndex: 0 };
+
+  // Tracking calendar:
+  // - Month 1 starts April 1
+  // - Week 1 is Apr 1–Apr 10
+  // - Weeks after that are Mon–Fri windows
+  const year = baseDate.getFullYear();
+  const week1Start = new Date(year, 3, 1, 0, 0, 0, 0);
+  const week1End = new Date(year, 3, 10, 23, 59, 59, 999);
+
+  // Month is calendar month offset from April.
+  const month = (d.getFullYear() - baseDate.getFullYear()) * 12 + (d.getMonth() - baseDate.getMonth()) + 1;
+
+  if (d <= week1End) {
+    return { month: Math.max(1, month), week: 1, termIndex: 0 };
+  }
+
+  // Find the Monday after week1End.
+  const week2Start = new Date(week1End);
+  week2Start.setHours(0, 0, 0, 0);
+  week2Start.setDate(week2Start.getDate() + 1);
+  while (week2Start.getDay() !== 1) week2Start.setDate(week2Start.getDate() + 1); // 1 = Monday
+
+  // Weekend should count as the previous business week for "this week" views.
+  const effective = new Date(d);
+  if (effective.getDay() === 6) effective.setDate(effective.getDate() - 1); // Sat -> Fri
+  if (effective.getDay() === 0) effective.setDate(effective.getDate() - 2); // Sun -> Fri
+  effective.setHours(0, 0, 0, 0);
+
   const MS_PER_DAY = 24 * 60 * 60 * 1000;
-  const TERMS_PER_MONTH = 4;
-  const DAYS_PER_TERM = 9;
-  const daysSinceBase = Math.max(0, Math.floor((d.getTime() - baseDate.getTime()) / MS_PER_DAY));
-  const termIndex = Math.floor(daysSinceBase / DAYS_PER_TERM);
-  const month = Math.floor(termIndex / TERMS_PER_MONTH) + 1;
-  const week = (termIndex % TERMS_PER_MONTH) + 1;
-  return { month, week, termIndex };
+  // Week index within the tracking program:
+  const daysSinceWeek2 = Math.max(0, Math.floor((effective.getTime() - week2Start.getTime()) / MS_PER_DAY));
+  const weeksSinceWeek2 = Math.floor(daysSinceWeek2 / 7);
+  const programWeek = 2 + weeksSinceWeek2;
+
+  // Week number within the current calendar month:
+  // - For April (month=1): Week 1 is the special kickoff window, then increments.
+  // - For later months: Week 1 starts on the first Monday of the month (Mon–Fri windows).
+  let week = 1;
+  if (month === 1) {
+    week = programWeek;
+  } else {
+    const monthStart = new Date(effective.getFullYear(), effective.getMonth(), 1, 0, 0, 0, 0);
+    // First Monday in this month:
+    const firstMon = new Date(monthStart);
+    while (firstMon.getDay() !== 1) firstMon.setDate(firstMon.getDate() + 1);
+    const daysSinceFirstMon = Math.max(0, Math.floor((effective.getTime() - firstMon.getTime()) / MS_PER_DAY));
+    week = 1 + Math.floor(daysSinceFirstMon / 7);
+  }
+
+  return { month: Math.max(1, month), week, termIndex: programWeek };
 }
 
 function getCycleMonthLabel(cycleMonth, baseDate = getCycleBaseDate()) {

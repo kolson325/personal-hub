@@ -335,6 +335,58 @@ function startOfDayLocal(epochSec) {
   return Math.floor(d.getTime() / 1000);
 }
 
+function startOfDayEpochFromYmdLocal(ymd) {
+  const m = asString(ymd).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+  const dt = new Date(y, mo - 1, d, 0, 0, 0, 0);
+  return Math.floor(dt.getTime() / 1000);
+}
+
+function endOfDayEpochFromYmdLocal(ymd) {
+  const start = startOfDayEpochFromYmdLocal(ymd);
+  if (start == null) return null;
+  return start + 86400 - 1;
+}
+
+function nextMondayStartEpoch(afterEpochSec) {
+  const d = new Date(afterEpochSec * 1000);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 1); // exclusive
+  while (d.getDay() !== 1) d.setDate(d.getDate() + 1); // 1 = Monday
+  return Math.floor(d.getTime() / 1000);
+}
+
+function trackingWeekForNow(nowEpochSec, startYmd, week1EndYmd) {
+  const start = startOfDayEpochFromYmdLocal(startYmd);
+  const week1End = endOfDayEpochFromYmdLocal(week1EndYmd);
+  if (start == null || week1End == null) return null;
+
+  // Week 1 is a special kickoff window.
+  if (nowEpochSec <= week1End) {
+    return { programWeek: 1, start, end: Math.min(nowEpochSec, week1End), label: "Week 1 (kickoff)" };
+  }
+
+  const week2Start = nextMondayStartEpoch(week1End);
+
+  // Monday->Friday windows. If on weekend, treat as last completed week.
+  const now = new Date(nowEpochSec * 1000);
+  const day = now.getDay(); // 0=Sun .. 6=Sat
+  let effectiveNowEpochSec = nowEpochSec;
+  if (day === 0) effectiveNowEpochSec = nowEpochSec - 86400 * 2; // Sunday -> Friday
+  if (day === 6) effectiveNowEpochSec = nowEpochSec - 86400; // Saturday -> Friday
+
+  const weeksSince = Math.floor((effectiveNowEpochSec - week2Start) / (86400 * 7));
+  const programWeek = 2 + Math.max(0, weeksSince);
+  const startEpoch = week2Start + weeksSince * 86400 * 7;
+  const fullEndEpoch = startEpoch + 86400 * 5 - 1; // Friday 23:59:59
+
+  return { programWeek, start: startEpoch, end: Math.min(nowEpochSec, fullEndEpoch), label: `Week ${programWeek}` };
+}
+
 function extractSubmissions(snapshot) {
   // Structured snapshot: { data: { submittedFormsLast30Days: [...] } }
   if (snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)) {
@@ -361,6 +413,51 @@ export function buildSummary(snapshot, nowEpochSec = Math.floor(Date.now() / 100
     month: periodSummary(filterByRange(submissions, monthStart, nowEpochSec))
   };
 
+  const trackingStart = process.env.TRACKING_START_DATE ?? "2026-04-01";
+  const trackingWeek1End = process.env.TRACKING_WEEK1_END_DATE ?? "2026-04-10";
+  const trackingWeek = trackingWeekForNow(nowEpochSec, trackingStart, trackingWeek1End);
+  const trackingMonth = (() => {
+    const m = asString(trackingStart).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return 1;
+    const baseY = Number(m[1]);
+    const baseM = Number(m[2]);
+    if (!Number.isFinite(baseY) || !Number.isFinite(baseM)) return 1;
+    const now = new Date(nowEpochSec * 1000);
+    const diff = (now.getFullYear() - baseY) * 12 + (now.getMonth() + 1 - baseM);
+    return Math.max(1, diff + 1);
+  })();
+  const trackingWeekInMonth = (() => {
+    if (!trackingWeek) return 1;
+    if (trackingMonth === 1) return trackingWeek.programWeek;
+    const now = new Date(nowEpochSec * 1000);
+    const effective = new Date(now);
+    const day = effective.getDay();
+    if (day === 6) effective.setDate(effective.getDate() - 1);
+    if (day === 0) effective.setDate(effective.getDate() - 2);
+    effective.setHours(0, 0, 0, 0);
+    const monthStart = new Date(effective.getFullYear(), effective.getMonth(), 1, 0, 0, 0, 0);
+    const firstMon = new Date(monthStart);
+    while (firstMon.getDay() !== 1) firstMon.setDate(firstMon.getDate() + 1);
+    const days = Math.max(0, Math.floor((effective.getTime() - firstMon.getTime()) / (86400 * 1000)));
+    return 1 + Math.floor(days / 7);
+  })();
+  const tracking = trackingWeek
+    ? {
+        startDate: trackingStart,
+        week1EndDate: trackingWeek1End,
+        month: trackingMonth,
+        week: trackingWeekInMonth,
+        programWeek: trackingWeek.programWeek,
+        currentWeek: {
+          programWeek: trackingWeek.programWeek,
+          label: trackingWeek.label,
+          start: trackingWeek.start,
+          end: trackingWeek.end,
+          summary: periodSummary(filterByRange(submissions, trackingWeek.start, trackingWeek.end))
+        }
+      }
+    : null;
+
   return {
     generatedAt: nowEpochSec,
     formCatalog: [...formCatalog.byId.values()].map((f) => ({
@@ -369,7 +466,8 @@ export function buildSummary(snapshot, nowEpochSec = Math.floor(Date.now() / 100
       type: f.type,
       configuredEmails: asArray(f.configuredEmails)
     })),
-    periods
+    periods,
+    tracking
   };
 }
 
@@ -402,4 +500,3 @@ export function buildSiteDetails(snapshot, siteRaw) {
     }))
   };
 }
-

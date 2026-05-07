@@ -23,7 +23,9 @@ services:
       TZ: ${TZ:-America/New_York}
       NODE_ENV: production
       DATABASE_URL: file:/data/app.db
-      DEPLOY_COMPOSE_PATH: /infra
+      # IMPORTANT: must be a path where docker-compose build contexts resolve correctly.
+      # We mount the repo at /repo, so running from /repo/infra ensures `../dashboard` and `../allsitehub` work.
+      DEPLOY_COMPOSE_PATH: /repo/infra
       WORKER_ID: vps-worker
       REPO_DIR: /repo
       GIT_PULL: "1"
