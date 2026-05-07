@@ -24,7 +24,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 VPS_IP="${VPS_IP:-}"
 SSH_USER="${SSH_USER:-root}"
-SSH_KEY="${SSH_KEY:-$ROOT_DIR/secrets/ssh/personalhub_ed25519}"
+DEFAULT_KEY="$HOME/.ssh/personalhub_ed25519"
+if [[ -f "$DEFAULT_KEY" ]]; then
+  SSH_KEY="${SSH_KEY:-$DEFAULT_KEY}"
+else
+  SSH_KEY="${SSH_KEY:-$ROOT_DIR/secrets/ssh/personalhub_ed25519}"
+fi
 REMOTE_DIR="${REMOTE_DIR:-/opt/personal-dashboard}"
 EMAIL_FOR_TLS="${EMAIL_FOR_TLS:-you@example.com}"
 
@@ -91,4 +96,3 @@ EOF
 
 echo "Done."
 echo "URLs will be live after Caddy obtains certificates (usually < 1 minute)."
-
