@@ -18,10 +18,12 @@
 **/.env.*
 !**/.env.example
 
+# secrets
+/secrets/
+
 # local sqlite
 **/*.db
 **/*.db-journal
 
 # logs
 **/*.log
-
