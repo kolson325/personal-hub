@@ -160,6 +160,11 @@ function getUpdateMinIntervalSeconds() {
   return Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : 60;
 }
 
+function getUpdateMaxSeconds() {
+  const raw = Number(process.env.UPDATE_MAX_SECONDS ?? 180);
+  return Number.isFinite(raw) ? Math.max(10, Math.floor(raw)) : 180;
+}
+
 app.post("/api/update", async (_req, res) => {
   if (updateProcess) {
     return res.status(409).json({ ok: false, error: "Update already running." });
@@ -178,7 +183,9 @@ app.post("/api/update", async (_req, res) => {
 
   lastUpdateStartedAt = new Date();
   const updaterPath = path.join(__dirname, "updater.js");
-  updateProcess = spawn(process.execPath, [updaterPath], {
+  const maxSeconds = getUpdateMaxSeconds();
+  // Use a hard timeout so a stalled upstream request can't wedge the server forever.
+  updateProcess = spawn("timeout", ["-k", "5", String(maxSeconds), process.execPath, updaterPath], {
     cwd: __dirname,
     stdio: "pipe",
     env: { ...process.env }
