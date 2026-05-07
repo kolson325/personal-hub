@@ -241,6 +241,14 @@ async function apiFetch({ baseUrl, apiKey, bearer }, endpoint) {
         await sleep(waitMs);
       }
 
+      // If we're still rate-limited after retries, bail out (don't cycle auth variants; it makes 429 worse).
+      if (res.status === 429) {
+        const safeUrl = url
+          .replaceAll(apiKey, "***REDACTED***")
+          .replaceAll(String(accessCode ?? ""), "***REDACTED***");
+        throw new Error(`Rate limited (429) on ${endpoint.method} ${safeUrl}`);
+      }
+
       if (res.ok) {
         if (!contentType.includes("application/json")) return { _raw: text };
         return JSON.parse(text);
