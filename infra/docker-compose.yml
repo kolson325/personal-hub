@@ -39,6 +39,7 @@ services:
     environment:
       CADDY_EMAIL: ${CADDY_EMAIL}
       DASHBOARD_HOST: ${DASHBOARD_HOST}
+      ALLSITE_HUB_HOST: ${ALLSITE_HUB_HOST}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
