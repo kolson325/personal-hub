@@ -143,11 +143,47 @@ If the dashboard is hosted on a VPS, its database lives on the VPS. You can keep
 
 If you want **all** personal dashboard data stored only on your laptop:
 - Run the dashboard on your laptop (SQLite on your disk)
-- Expose it to the internet using a tunnel (Cloudflare Tunnel / localtunnel) or a VPN
+- Expose it to the internet using a tunnel/VPN **or** an SSH reverse tunnel to your VPS (stable URL without buying a domain)
 
 This repo currently supports both patterns:
 - VPS mode: always-on access (data stored on VPS volume)
 - Laptop mode: storage stays local (availability depends on laptop being online)
+
+### Laptop mode (stable URL via VPS reverse proxy)
+
+Goal: keep the public URL the same (`https://personal.<VPS_IP>.nip.io`) while the dashboard + DB run on your laptop.
+
+On the VPS:
+1) Edit `/opt/personal-hub/infra/.env`:
+   - `DASHBOARD_UPSTREAM="host.docker.internal:7000"`
+2) Restart Caddy:
+   ```bash
+   cd /opt/personal-hub/infra
+   docker compose up -d
+   ```
+3) (Optional) stop VPS dashboard containers so there’s no VPS storage usage for the dashboard:
+   ```bash
+   cd /opt/personal-hub/infra
+   docker compose stop dashboard worker
+   ```
+
+On your laptop:
+1) Run the dashboard locally (production-ish):
+   ```bash
+   cd dashboard
+   npm install
+   npm run build
+   DASHBOARD_PASSWORD="kolson" \
+   AGENT_TOKEN="<same as VPS /opt/personal-hub/infra/.env>" \
+   ALLSITE_CENTRAL_HUB_URL="https://allsite.<VPS_IP>.nip.io" \
+   npm run start
+   ```
+2) Start the reverse tunnel (keeps it stable and private on the VPS loopback):
+   ```bash
+   VPS_HOST=root@<VPS_IP> bash infra/laptop-reverse-tunnel.sh
+   ```
+
+Now the public URL will serve your laptop-hosted dashboard, and the DB stays on your laptop disk.
 
 ## 6) “Ask Codex” / agent integration
 

@@ -15,6 +15,7 @@ Then set:
 
 - `DASHBOARD_HOST="personal.<VPS_IP>.nip.io"`
 - `ALLSITE_HUB_HOST="allsite.<VPS_IP>.nip.io"`
+- `DASHBOARD_UPSTREAM="dashboard:3000"` (default)
 
 ## 2) On the VPS
 
@@ -40,6 +41,19 @@ This stack includes a small `worker` service that polls the database for `redepl
 It mounts `/var/run/docker.sock`, the repo root, and the `infra/` directory so it can manage the stack.
 
 Important: the worker runs Compose from `/repo/infra` so build contexts like `../dashboard` work.
+
+## Laptop-local dashboard mode (DB stays on your laptop)
+
+If your laptop is on all day and you want **zero dashboard DB storage on the VPS**, you can run the dashboard on your laptop and use the VPS only as:
+- HTTPS reverse proxy (Caddy)
+- Allsite hub host
+
+VPS `.env`:
+- `DASHBOARD_UPSTREAM="host.docker.internal:7000"`
+
+Laptop:
+- run dashboard on `localhost:3000`
+- run `infra/laptop-reverse-tunnel.sh` to forward VPS `127.0.0.1:7000` → laptop `localhost:3000`
 
 ## 3) Companion (optional, runs on your Mac)
 

@@ -50,10 +50,15 @@ services:
       CADDY_EMAIL: ${CADDY_EMAIL}
       DASHBOARD_HOST: ${DASHBOARD_HOST}
       ALLSITE_HUB_HOST: ${ALLSITE_HUB_HOST}
+      DASHBOARD_UPSTREAM: ${DASHBOARD_UPSTREAM:-dashboard:3000}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    extra_hosts:
+      # Allows Caddy to reach the VPS host loopback via `host.docker.internal`.
+      # Used for laptop-local dashboard mode (SSH reverse tunnel binds to 127.0.0.1 on the VPS).
+      - "host.docker.internal:host-gateway"
     depends_on:
       - dashboard
       - worker

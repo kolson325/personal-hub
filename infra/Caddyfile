@@ -4,7 +4,9 @@
 
 {$DASHBOARD_HOST} {
   encode gzip
-  reverse_proxy dashboard:3000
+  # Default: proxy to the dashboard container.
+  # Laptop-local mode: set DASHBOARD_UPSTREAM="host.docker.internal:<PORT>" (see docs).
+  reverse_proxy {$DASHBOARD_UPSTREAM:dashboard:3000}
 }
 
 {$ALLSITE_HUB_HOST} {
