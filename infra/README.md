@@ -32,8 +32,12 @@ Copy `infra/vps-bootstrap.sh` to the VPS and run it as root, or pipe it via `cur
 
 ## Redeploy buttons
 
-This stack includes a small `worker` service that polls the database for `redeploy` jobs and runs `docker compose up -d`.
-It mounts `/var/run/docker.sock` and the `infra/` directory so it can manage the stack.
+This stack includes a small `worker` service that polls the database for `redeploy` jobs and runs:
+
+- `git pull --ff-only` (so it picks up the latest code from GitHub)
+- `docker compose up -d --build`
+
+It mounts `/var/run/docker.sock`, the repo root, and the `infra/` directory so it can manage the stack.
 
 ## 3) Companion (optional, runs on your Mac)
 

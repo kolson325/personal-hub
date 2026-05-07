@@ -69,6 +69,8 @@ async function handleJob(job) {
   if (job.kind === "redeploy") {
     const target = String(payload.target ?? "").trim();
     const composePath = process.env.DEPLOY_COMPOSE_PATH ?? "/infra";
+    const repoDir = process.env.REPO_DIR ?? "/repo";
+    const doGitPull = (process.env.GIT_PULL ?? "").trim() === "1";
 
     const allowedTargets = new Set(["dashboard", "centralhub", "bizdev-agent", "devops-agent", "combine-monitor"]);
     if (!allowedTargets.has(target)) {
@@ -77,10 +79,14 @@ async function handleJob(job) {
     }
 
     // Assumes docker compose is available on the host and /var/run/docker.sock is mounted.
-    const steps = [
-      `docker compose pull`,
-      `docker compose up -d --remove-orphans`,
-    ];
+    const steps = [];
+    if (doGitPull) {
+      steps.push(`git -C ${JSON.stringify(repoDir)} rev-parse --short HEAD || true`);
+      steps.push(`git -C ${JSON.stringify(repoDir)} pull --ff-only`);
+      steps.push(`git -C ${JSON.stringify(repoDir)} rev-parse --short HEAD || true`);
+    }
+    steps.push(`docker compose pull`);
+    steps.push(`docker compose up -d --remove-orphans --build`);
     const logs = [];
     let ok = true;
     for (const step of steps) {
@@ -112,4 +118,3 @@ while (true) {
     await new Promise((r) => setTimeout(r, 5000));
   }
 }
-

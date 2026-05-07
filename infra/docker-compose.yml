@@ -22,10 +22,13 @@ services:
       DATABASE_URL: file:/data/app.db
       DEPLOY_COMPOSE_PATH: /infra
       WORKER_ID: vps-worker
+      REPO_DIR: /repo
+      GIT_PULL: "1"
     volumes:
       - dashboard_data:/data
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/infra
+      - ../:/repo
 
   caddy:
     image: caddy:2
