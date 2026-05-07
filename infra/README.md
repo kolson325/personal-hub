@@ -39,6 +39,8 @@ This stack includes a small `worker` service that polls the database for `redepl
 
 It mounts `/var/run/docker.sock`, the repo root, and the `infra/` directory so it can manage the stack.
 
+Important: the worker runs Compose from `/repo/infra` so build contexts like `../dashboard` work.
+
 ## 3) Companion (optional, runs on your Mac)
 
 The dashboard can accept job results from a local “companion” runner.
@@ -55,3 +57,8 @@ Run:
 cd dashboard
 npm run companion
 ```
+
+Tip: LOCAL-only jobs include:
+- `shell` and `combine_scan` jobs queued from `/ai`
+- `codex` jobs queued from “Ask Codex” boxes
+- `gmail_triage` automation (placeholder)

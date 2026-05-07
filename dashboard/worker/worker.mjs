@@ -342,7 +342,7 @@ async function handleJob(job) {
 
   if (job.kind === "redeploy") {
     const target = String(payload.target ?? "").trim();
-    const composePath = process.env.DEPLOY_COMPOSE_PATH ?? "/infra";
+    const composePath = process.env.DEPLOY_COMPOSE_PATH ?? "/repo/infra";
     const repoDir = process.env.REPO_DIR ?? "/repo";
     const doGitPull = (process.env.GIT_PULL ?? "").trim() === "1";
 
