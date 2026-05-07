@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import type { CodexQueueState } from "@/app/actions";
+import { QuickPrompts } from "@/app/_components/QuickPrompts";
 
 type CodexJob = {
   id: string;
@@ -111,6 +112,29 @@ export function CodexChat({
   const lockedError =
     !state.ok && state.error && state.error.includes("Another Codex run") ? state.error : null;
 
+  const quick = [
+    {
+      label: "Morning plan",
+      text: "Give me a tight morning brief: 1) top 3 priorities, 2) what to ignore, 3) the next action for each, 4) a 90-minute focus block plan. Keep it decisive.",
+    },
+    {
+      label: "Allsite today",
+      text: "Summarize today’s Allsite submissions: top issues, critical sites/vendors, and the 3 follow-ups that matter most. Draft the messages.",
+    },
+    {
+      label: "DevOps learn",
+      text: "Teach me one modern DevOps concept I can apply this week (simple explanation, why it matters, how to implement, and a 30-minute starter task). No fluff.",
+    },
+    {
+      label: "Midday reset",
+      text: "Midday reset: based on what I’ve done so far, re-plan the rest of today into 2 focus blocks + 1 admin block. Keep it ruthless and realistic.",
+    },
+    {
+      label: "Evening wrap",
+      text: "End-of-day wrap: summarize wins, open loops, and write tomorrow’s top 3 with next actions. Keep it short and actionable.",
+    },
+  ];
+
   return (
     <div className="grid gap-4">
       <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
@@ -160,6 +184,18 @@ export function CodexChat({
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
         <div className="text-sm font-semibold">New request</div>
+        <div className="mt-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Quick prompts</div>
+          <div className="mt-2">
+            <QuickPrompts
+              prompts={quick}
+              onPick={(t) => {
+                setText(t);
+                inputRef.current?.focus();
+              }}
+            />
+          </div>
+        </div>
         <form
           action={(fd) => {
             const t = String(fd.get("text") ?? "").trim();

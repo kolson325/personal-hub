@@ -5,6 +5,7 @@ import { addTodo, markDone, togglePinned } from "@/app/todo/actions";
 import { runScheduleNow } from "@/app/automations/actions";
 import { AskCodex } from "@/app/_components/AskCodex";
 import { queueCodexTask } from "@/app/actions";
+import { getDevotionalToday } from "@/lib/devotional";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +78,7 @@ async function getAllsiteSummary() {
 
 export default async function DashboardHome() {
   const counts = await getCounts();
-  const [recentJobs, openTodos, agentRuns, schedules, allsite, activeCodex, lastCodex] = await Promise.all([
+  const [recentJobs, openTodos, agentRuns, schedules, allsite, activeCodex, lastCodex, devotional] = await Promise.all([
     prisma.agentJob.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
     prisma.todoItem.findMany({
       where: { status: "OPEN" },
@@ -102,6 +103,7 @@ export default async function DashboardHome() {
       where: { kind: "codex", runner: "LOCAL", status: { in: ["SUCCEEDED", "FAILED"] } },
       orderBy: { createdAt: "desc" },
     }),
+    getDevotionalToday(new Date()),
   ]);
   const scheduleByKey = new Map(schedules.map((s) => [s.key, s]));
 
@@ -325,6 +327,29 @@ export default async function DashboardHome() {
 
               <div className="mt-3">
                 <AskCodex title="Ask Codex" action={queueCodexTask} />
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 p-5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">Daily devotional</div>
+                  <div className="mt-1 text-sm text-white/70">A short biblical teaching for the day.</div>
+                </div>
+                <div className="text-xs text-white/50">{devotional.source === "thebibleapi" ? "source: web" : "source: offline"}</div>
+              </div>
+              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-white/60">{devotional.reference}</div>
+                <div className="mt-2 text-sm text-white/90">{devotional.text}</div>
+                <div className="mt-3 text-xs text-white/60">Takeaway: {devotional.takeaway}</div>
+              </div>
+              <div className="mt-3">
+                <AskCodex
+                  title="Ask Codex (apply this)"
+                  context="devotional"
+                  placeholder='Try: “Help me apply this to my work today”, “Write a short prayer for this”, “Give me a 5-minute reflection.”'
+                  action={queueCodexTask}
+                />
               </div>
             </div>
 

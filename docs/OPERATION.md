@@ -65,6 +65,9 @@ Key files:
 - Home layout: `dashboard/src/app/page.tsx`
 - Navigation component: `dashboard/src/app/_components/TopNav.tsx`
 - “Ask Codex” widget: `dashboard/src/app/_components/AskCodex.tsx`
+- Codex chat page: `dashboard/src/app/codex/page.tsx`
+- Devotional API: `dashboard/src/app/api/devotional/today/route.ts`
+- Devotional fallback list: `dashboard/src/lib/devotional.ts`
 - Automations UI: `dashboard/src/app/automations/page.tsx`
 - Budget UI: `dashboard/src/app/budget/page.tsx`
 - Inbox UI: `dashboard/src/app/inbox/page.tsx`
@@ -224,3 +227,13 @@ Codex execution:
   ```
 
 The companion will prompt for approval before doing anything sensitive.
+
+## 7) Daily devotional (biblical teaching)
+
+Home shows a small “Daily devotional” card.
+
+By default it uses an offline-safe, deterministic verse list (no external dependencies).
+
+Optional: live “verse of the day” provider:
+- Set `DEVOTIONAL_PROVIDER="thebibleapi"` to fetch the daily verse (no API key).
+- Optional override: `DEVOTIONAL_THEBIBLEAPI_URL="..."`.
