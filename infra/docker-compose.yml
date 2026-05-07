@@ -1,0 +1,49 @@
+services:
+  dashboard:
+    build:
+      context: ../dashboard
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: file:/data/app.db
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
+      AGENT_TOKEN: ${AGENT_TOKEN}
+    volumes:
+      - dashboard_data:/data
+
+  worker:
+    build:
+      context: ../dashboard
+    restart: unless-stopped
+    command: ["node", "worker/worker.mjs"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: file:/data/app.db
+      DEPLOY_COMPOSE_PATH: /infra
+      WORKER_ID: vps-worker
+    volumes:
+      - dashboard_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/infra
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CADDY_EMAIL: ${CADDY_EMAIL}
+      DASHBOARD_HOST: ${DASHBOARD_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - dashboard
+      - worker
+
+volumes:
+  dashboard_data:
+  caddy_data:
+  caddy_config:

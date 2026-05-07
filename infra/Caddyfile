@@ -1,0 +1,9 @@
+{
+  email {$CADDY_EMAIL}
+}
+
+{$DASHBOARD_HOST} {
+  encode gzip
+  reverse_proxy dashboard:3000
+}
+
