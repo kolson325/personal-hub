@@ -87,6 +87,7 @@ async function handleJob(job) {
     if (job.kind === "codex") {
       const text = String(payload.text ?? "").trim();
       const context = String(payload.context ?? "").trim();
+      const panelDataJson = String(payload.panelDataJson ?? "").trim();
       const ok = await requireApproval(`Codex task requested${context ? ` (${context})` : ""}:\n${text}\nProceed?`);
       if (!ok) {
         await report(job.id, "FAILED", undefined, "User declined Codex task.");
@@ -98,7 +99,18 @@ async function handleJob(job) {
           ? COMBINE_REPO_PATH
           : process.env.CODEX_CWD?.trim() || process.cwd();
 
-      await report(job.id, "CLAIMED", `Starting Codex…\nworkdir: ${workdir}\ncontext: ${context || "—"}`, undefined);
+      await report(job.id, "CLAIMED", `Starting Codex…\nworkdir: ${workdir}\ncontext: ${context || "—"}\n\n`, undefined);
+
+      const preamble =
+        `You are Kolson’s personal dashboard assistant.\n` +
+        `Optimize for these goals: money, DevOps career growth, Allsite growth, health, relationship with God.\n` +
+        `Be decisive: give straight answers, a plan, and next actions (not long research). If you need info, ask only the minimum.\n` +
+        `Use PANEL_DATA_JSON when present; do not hallucinate missing numbers.\n\n`;
+
+      const fullPrompt =
+        preamble +
+        (panelDataJson ? `PANEL_DATA_JSON:\n${panelDataJson}\n\n` : "") +
+        `USER_REQUEST:\n${text}\n`;
 
       const codexArgs = [
         "exec",
@@ -111,7 +123,7 @@ async function handleJob(job) {
         process.env.CODEX_SANDBOX?.trim() || "workspace-write",
         "-C",
         workdir,
-        text,
+        fullPrompt,
       ];
 
       const child = spawn("codex", codexArgs, { stdio: ["ignore", "pipe", "pipe"] });

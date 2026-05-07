@@ -52,7 +52,11 @@ export function CodexChat({
   const [text, setText] = useState("");
   const [remote, setRemote] = useState<CodexState | null>(null);
   const [networkError, setNetworkError] = useState<string | null>(null);
+  const [liveActive, setLiveActive] = useState<CodexJob | null>(null);
+  const liveSourceRef = useRef<EventSource | null>(null);
+  const liveJobIdRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const justQueuedJobId = state.ok ? state.jobId : null;
 
   async function refresh() {
     try {
@@ -75,6 +79,123 @@ export function CodexChat({
       clearInterval(t);
     };
   }, []);
+
+  useEffect(() => {
+    if (!justQueuedJobId) return;
+    // Kick the stream immediately for the freshly queued job (feels instant).
+    liveSourceRef.current?.close();
+    const es = new EventSource(`/api/codex/stream?jobId=${encodeURIComponent(justQueuedJobId)}`);
+    liveSourceRef.current = es;
+    liveJobIdRef.current = justQueuedJobId;
+
+    es.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
+        const j = data?.job;
+        if (!j?.id) return;
+        setLiveActive((prev) => ({
+          id: String(j.id),
+          status: String(j.status),
+          createdAt: String(j.createdAt),
+          claimedAt: j.claimedAt ? String(j.claimedAt) : null,
+          finishedAt: j.finishedAt ? String(j.finishedAt) : null,
+          payload: prev?.payload ?? { text: "", context: "" },
+          resultText: j.resultText ? String(j.resultText) : null,
+          errorText: j.errorText ? String(j.errorText) : null,
+        }));
+      } catch {
+        // ignore
+      }
+    };
+
+    es.onerror = () => {
+      es.close();
+      if (liveSourceRef.current === es) {
+        liveSourceRef.current = null;
+        liveJobIdRef.current = null;
+      }
+    };
+
+    setTimeout(() => void refresh(), 0);
+
+    return () => {
+      es.close();
+      if (liveSourceRef.current === es) {
+        liveSourceRef.current = null;
+        liveJobIdRef.current = null;
+      }
+    };
+  }, [justQueuedJobId]);
+
+  useEffect(() => {
+    const active = remote?.active ?? null;
+    const id = active?.id ?? null;
+    const status = active?.status ?? "";
+    const isRunning = status === "QUEUED" || status === "CLAIMED";
+
+    // Keep the last streamed active resultText for finished jobs.
+    if (!active || !id || !isRunning) {
+      liveSourceRef.current?.close();
+      liveSourceRef.current = null;
+      liveJobIdRef.current = null;
+      return;
+    }
+
+    // Reuse existing stream if it’s already pointed at this job.
+    if (liveSourceRef.current && liveJobIdRef.current === id) return;
+
+    const activePayload = active.payload;
+
+    liveSourceRef.current?.close();
+    const es = new EventSource(`/api/codex/stream?jobId=${encodeURIComponent(id)}`);
+    liveSourceRef.current = es;
+    liveJobIdRef.current = id;
+
+    es.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
+        const j = data?.job;
+        if (!j?.id) return;
+        setLiveActive({
+          id: String(j.id),
+          status: String(j.status),
+          createdAt: String(j.createdAt),
+          claimedAt: j.claimedAt ? String(j.claimedAt) : null,
+          finishedAt: j.finishedAt ? String(j.finishedAt) : null,
+          payload: activePayload,
+          resultText: j.resultText ? String(j.resultText) : null,
+          errorText: j.errorText ? String(j.errorText) : null,
+        });
+        if (j.status === "SUCCEEDED" || j.status === "FAILED" || j.status === "CANCELED") {
+          es.close();
+          if (liveSourceRef.current === es) {
+            liveSourceRef.current = null;
+            liveJobIdRef.current = null;
+          }
+          setTimeout(() => void refresh(), 200);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    es.onerror = () => {
+      // fall back to polling silently
+      es.close();
+      if (liveSourceRef.current === es) {
+        liveSourceRef.current = null;
+        liveJobIdRef.current = null;
+      }
+    };
+
+    return () => {
+      es.close();
+      if (liveSourceRef.current === es) {
+        liveSourceRef.current = null;
+        liveJobIdRef.current = null;
+      }
+    };
+  }, [remote?.active]);
 
   const messages = useMemo(() => {
     const jobs = remote?.recent ?? [];
@@ -108,7 +229,9 @@ export function CodexChat({
     return out;
   }, [remote]);
 
-  const active = remote?.active ?? null;
+  const remoteActive = remote?.active ?? null;
+  const active =
+    remoteActive && liveActive && liveActive.id === remoteActive.id ? liveActive : remoteActive;
   const lockedError =
     !state.ok && state.error && state.error.includes("Another Codex run") ? state.error : null;
 

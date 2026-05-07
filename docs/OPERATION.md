@@ -201,6 +201,12 @@ Concurrency rule:
 - If you submit a second request while one is `QUEUED`/`CLAIMED`, the UI will show:
   “Another Codex run is already in progress — please wait until it finishes.”
 
+Live “thinking”:
+- `/codex` uses an SSE stream (`/api/codex/stream`) so the active run updates live as the companion appends progress.
+
+Panel-aware prompts:
+- When you submit from a panel (budget / allsite / devotional / tasks), the server attaches a small `panelDataJson` blob so Codex can answer with the panel’s data without you re-explaining it.
+
 To run these jobs on your laptop:
 1) Copy `AGENT_TOKEN` from the VPS `.env`:
    - `/opt/personal-hub/infra/.env`

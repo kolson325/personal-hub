@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     const nextResult =
       typeof resultText === "string"
         ? append
-          ? `${existing.resultText ?? ""}${existing.resultText ? "\n" : ""}${resultText}`.trimEnd()
+          ? `${existing.resultText ?? ""}${resultText}`
           : resultText
         : existing.resultText ?? null;
 
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   const nextResult =
     typeof resultText === "string"
       ? append
-        ? `${existing.resultText ?? ""}${existing.resultText ? "\n" : ""}${resultText}`.trimEnd()
+        ? `${existing.resultText ?? ""}${resultText}`
         : resultText
       : existing.resultText ?? null;
 
