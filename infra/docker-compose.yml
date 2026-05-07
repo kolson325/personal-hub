@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     command: ["sh","-c","mkdir -p /data && touch /data/app.db && npx prisma db push && npm run start"]
     environment:
+      TZ: ${TZ:-America/New_York}
       NODE_ENV: production
       DATABASE_URL: file:/data/app.db
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
@@ -19,12 +20,14 @@ services:
     restart: unless-stopped
     command: ["sh","-c","mkdir -p /data && touch /data/app.db && npx prisma db push && node worker/worker.mjs"]
     environment:
+      TZ: ${TZ:-America/New_York}
       NODE_ENV: production
       DATABASE_URL: file:/data/app.db
       DEPLOY_COMPOSE_PATH: /infra
       WORKER_ID: vps-worker
       REPO_DIR: /repo
       GIT_PULL: "1"
+      ALLSITE_CENTRAL_HUB_URL: ${ALLSITE_CENTRAL_HUB_URL}
     volumes:
       - dashboard_data:/data
       - /var/run/docker.sock:/var/run/docker.sock
@@ -38,6 +41,7 @@ services:
       - "80:80"
       - "443:443"
     environment:
+      TZ: ${TZ:-America/New_York}
       CADDY_EMAIL: ${CADDY_EMAIL}
       DASHBOARD_HOST: ${DASHBOARD_HOST}
       ALLSITE_HUB_HOST: ${ALLSITE_HUB_HOST}
@@ -54,6 +58,7 @@ services:
       context: ../allsitehub
     restart: unless-stopped
     environment:
+      TZ: ${TZ:-America/New_York}
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 4545

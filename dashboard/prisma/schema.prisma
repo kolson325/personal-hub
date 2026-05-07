@@ -20,6 +20,12 @@ enum JobStatus {
   CANCELED
 }
 
+enum ScheduleType {
+  INTERVAL
+  DAILY
+  WEEKLY
+}
+
 model TodoItem {
   id        String     @id @default(cuid())
   title     String
@@ -55,6 +61,9 @@ model AgentJob {
   finishedAt  DateTime?
   resultText  String?
   errorText   String?
+
+  scheduleId String?
+  schedule   AutomationSchedule? @relation(fields: [scheduleId], references: [id])
 }
 
 model Service {
@@ -64,4 +73,22 @@ model Service {
   url         String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model AutomationSchedule {
+  id              String       @id @default(cuid())
+  key             String       // e.g. "bizdev_digest", "devops_radar", "allsite_update"
+  name            String
+  enabled         Boolean      @default(true)
+  scheduleType    ScheduleType @default(INTERVAL)
+  intervalMinutes Int?
+  timeOfDay       String?      // "HH:MM" (local time in the container)
+  daysOfWeek      String?      // "0,1,2" (0=Sun..6=Sat) for WEEKLY
+  configJson      String?
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  jobs AgentJob[]
 }
