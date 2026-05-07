@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { logout } from "@/app/login/actions";
 import { addTodo, markDone, togglePinned } from "@/app/todo/actions";
 import { runScheduleNow } from "@/app/automations/actions";
+import { AskCodex } from "@/app/_components/AskCodex";
+import { queueCodexTask } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +21,19 @@ function formatToday() {
   return now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 }
 
+function startOfMonth(d = new Date()) {
+  const x = new Date(d);
+  x.setDate(1);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function dollars(cents: number) {
+  const sign = cents < 0 ? "-" : "";
+  const abs = Math.abs(cents);
+  return `${sign}$${(abs / 100).toFixed(2)}`;
+}
+
 async function getAllsiteSummary() {
   const base = process.env.ALLSITE_CENTRAL_HUB_URL ?? "https://allsitefacilities-centralhub.loca.lt";
   const url = new URL("/api/summary", base).toString();
@@ -31,11 +46,16 @@ async function getAllsiteSummary() {
     if (!summaryRes.ok) throw new Error(`summary HTTP ${summaryRes.status}`);
     const summaryJson = (await summaryRes.json().catch(() => null)) as any;
     const statusJson = statusRes.ok ? ((await statusRes.json().catch(() => null)) as any) : null;
+    const periods = summaryJson?.summary?.periods ?? null;
+    const today = periods?.today ?? null;
+    const yesterday = periods?.yesterday ?? null;
     return {
       ok: true as const,
       base,
       hasSnapshot: Boolean(summaryJson?.hasSnapshot),
-      summary: Array.isArray(summaryJson?.summary) ? summaryJson.summary : [],
+      periods,
+      today,
+      yesterday,
       updateStatus: statusJson,
     };
   } catch (e) {
@@ -58,12 +78,21 @@ export default async function DashboardHome() {
       take: 8,
     }),
     prisma.automationSchedule.findMany({
-      where: { key: { in: ["allsite_update", "bizdev_digest", "devops_radar", "todo_triage", "services_ping"] } },
+      where: { key: { in: ["allsite_update", "bizdev_digest", "devops_radar", "todo_triage", "services_ping", "budget_digest", "gmail_triage"] } },
       orderBy: { updatedAt: "desc" },
     }),
     getAllsiteSummary(),
   ]);
   const scheduleByKey = new Map(schedules.map((s) => [s.key, s]));
+
+  const monthStart = startOfMonth(new Date());
+  const [monthBudget, gmailRun] = await Promise.all([
+    prisma.budgetEntry.findMany({ where: { occurredOn: { gte: monthStart } } }),
+    prisma.agentRun.findFirst({ where: { agentType: "gmail" }, orderBy: { startedAt: "desc" } }),
+  ]);
+  const income = monthBudget.filter((e) => e.amountCents > 0).reduce((a, e) => a + e.amountCents, 0);
+  const expenses = monthBudget.filter((e) => e.amountCents < 0).reduce((a, e) => a + e.amountCents, 0);
+  const net = income + expenses;
 
   return (
     <main className="min-h-screen">
@@ -80,9 +109,18 @@ export default async function DashboardHome() {
               Morning brief, automations, agents, and deploy controls.
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/inbox">
+              Inbox
+            </Link>
+            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/budget">
+              Budget
+            </Link>
             <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/automations">
               Automations
+            </Link>
+            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/todo">
+              Tasks
             </Link>
             <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/deploy">
               Deploy
@@ -235,6 +273,56 @@ export default async function DashboardHome() {
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
+                  <div className="text-sm font-semibold">Budget (this month)</div>
+                  <div className="mt-1 text-sm text-white/70">Income, expenses, and net.</div>
+                </div>
+                <Link className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90" href="/budget">
+                  Open
+                </Link>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Income</div>
+                  <div className="mt-1 text-lg font-semibold">{dollars(income)}</div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Expenses</div>
+                  <div className="mt-1 text-lg font-semibold">{dollars(expenses)}</div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Net</div>
+                  <div className="mt-1 text-lg font-semibold">{dollars(net)}</div>
+                </div>
+              </div>
+              <div className="mt-4">
+                <AskCodex title="Ask Codex (budget)" context="budget" action={queueCodexTask} />
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">Inbox (Gmail)</div>
+                  <div className="mt-1 text-sm text-white/70">Triage and turn important items into tasks.</div>
+                </div>
+                <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/inbox">
+                  Open
+                </Link>
+              </div>
+              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
+                Last triage: {gmailRun ? gmailRun.startedAt.toISOString().replace("T", " ").slice(0, 19) : "—"}
+              </div>
+              <div className="mt-4">
+                <AskCodex title="Ask Codex (gmail)" context="gmail" action={queueCodexTask} />
+              </div>
+              <div className="mt-3 text-xs text-white/50">
+                Schedule it in Automations → “Gmail inbox triage” (runs when your laptop companion is connected).
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
                   <div className="text-sm font-semibold">Allsite hub (site photos)</div>
                   <div className="mt-1 text-sm text-white/70">Live data + snapshot status.</div>
                 </div>
@@ -309,21 +397,42 @@ export default async function DashboardHome() {
 
               {allsite.ok ? (
                 <div className="mt-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Summary</div>
-                  <div className="mt-2 grid gap-2">
-                    {allsite.summary.length === 0 ? (
-                      <div className="text-sm text-white/60">No summary yet.</div>
-                    ) : (
-                      allsite.summary.slice(0, 8).map((row: any, idx: number) => (
-                        <div key={idx} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="truncate text-sm font-medium">{String(row.site ?? row.name ?? "Site")}</div>
-                            <div className="text-xs text-white/60">{String(row.count ?? row.total ?? "")}</div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Today</div>
+                      <div className="mt-1 text-2xl font-semibold">{String(allsite.today?.total ?? 0)}</div>
+                      <div className="mt-1 text-xs text-white/60">
+                        issues: {allsite.today?.withIssues ? "yes" : "no"} • critical: {String(allsite.today?.critical?.length ?? 0)}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Yesterday</div>
+                      <div className="mt-1 text-2xl font-semibold">{String(allsite.yesterday?.total ?? 0)}</div>
+                      <div className="mt-1 text-xs text-white/60">
+                        issues: {allsite.yesterday?.withIssues ? "yes" : "no"} • critical: {String(allsite.yesterday?.critical?.length ?? 0)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Today (latest)</div>
+                    <div className="mt-2 grid gap-2">
+                      {Array.isArray(allsite.today?.timeline) && allsite.today.timeline.length > 0 ? (
+                        allsite.today.timeline.slice(0, 6).map((t: any, idx: number) => (
+                          <div key={idx} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="truncate text-sm font-medium">{String(t.site ?? "Site")}</div>
+                              <div className="text-xs text-white/60">{t.suspect ? "⚠︎" : "OK"}</div>
+                            </div>
+                            <div className="mt-1 text-xs text-white/50">
+                              {String(t.vendor ?? "")} • {String(t.formName ?? "")}
+                            </div>
                           </div>
-                          {row.latest ? <div className="mt-1 text-xs text-white/50">latest: {String(row.latest)}</div> : null}
-                        </div>
-                      ))
-                    )}
+                        ))
+                      ) : (
+                        <div className="text-sm text-white/60">No submissions yet.</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ) : null}

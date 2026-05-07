@@ -20,6 +20,11 @@ enum JobStatus {
   CANCELED
 }
 
+enum JobRunner {
+  VPS
+  LOCAL
+}
+
 enum ScheduleType {
   INTERVAL
   DAILY
@@ -55,6 +60,7 @@ model AgentJob {
   kind        String    // e.g. "shell"
   payloadJson String
   status      JobStatus @default(QUEUED)
+  runner      JobRunner @default(VPS)
   claimedBy   String?
   createdAt   DateTime  @default(now())
   claimedAt   DateTime?
@@ -91,4 +97,14 @@ model AutomationSchedule {
   updatedAt       DateTime     @updatedAt
 
   jobs AgentJob[]
+}
+
+model BudgetEntry {
+  id          String   @id @default(cuid())
+  occurredOn  DateTime @default(now())
+  amountCents Int      // positive for income, negative for expense
+  category    String?
+  merchant    String?
+  notes       String?
+  createdAt   DateTime @default(now())
 }

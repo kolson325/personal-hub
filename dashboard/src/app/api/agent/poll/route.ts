@@ -8,9 +8,10 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const agentId = url.searchParams.get("agent_id") ?? "unknown-agent";
+  const runner = (url.searchParams.get("runner") ?? "LOCAL").toUpperCase() === "VPS" ? "VPS" : "LOCAL";
 
   const job = await prisma.agentJob.findFirst({
-    where: { status: "QUEUED" },
+    where: { status: "QUEUED", runner },
     orderBy: { createdAt: "asc" },
   });
 
@@ -23,4 +24,3 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ ok: true, job: claimed });
 }
-

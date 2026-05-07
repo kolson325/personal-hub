@@ -8,9 +8,11 @@ export async function queueJob(formData: FormData) {
   const text = String(formData.get("text") ?? "").trim();
   if (!text) return;
 
+  const runner = kind === "shell" || kind === "combine_scan" ? "LOCAL" : "VPS";
   await prisma.agentJob.create({
     data: {
       kind,
+      runner,
       payloadJson: JSON.stringify({ text }),
       status: "QUEUED",
     },
@@ -28,4 +30,3 @@ export async function cancelJob(id: string) {
   revalidatePath("/ai");
   revalidatePath("/");
 }
-

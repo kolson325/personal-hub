@@ -7,6 +7,7 @@ export async function queueRedeploy(target: string) {
   await prisma.agentJob.create({
     data: {
       kind: "redeploy",
+      runner: "VPS",
       payloadJson: JSON.stringify({ target }),
       status: "QUEUED",
     },
@@ -14,4 +15,3 @@ export async function queueRedeploy(target: string) {
   revalidatePath("/deploy");
   revalidatePath("/");
 }
-

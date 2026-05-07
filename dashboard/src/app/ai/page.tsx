@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { cancelJob, queueJob } from "./actions";
+import { TopNav } from "@/app/_components/TopNav";
 
 export const dynamic = "force-dynamic";
 
@@ -9,17 +9,7 @@ export default async function AiPage() {
 
   return (
     <main className="min-h-screen">
-      <header className="border-b border-white/10 bg-zinc-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <div>
-            <h1 className="text-lg font-semibold">AI / Agent Jobs</h1>
-            <p className="text-xs text-white/60">Queue tasks for your (future) local companion + Codex hook.</p>
-          </div>
-          <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/">
-            Back
-          </Link>
-        </div>
-      </header>
+      <TopNav title="AI / Agent Jobs" subtitle="Queue tasks for your laptop companion + Codex hook." />
 
       <section className="mx-auto max-w-4xl px-6 py-6">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">

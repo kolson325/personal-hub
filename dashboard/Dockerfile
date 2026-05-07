@@ -17,6 +17,12 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# Used by the in-app redeploy runner (worker) to `git pull` and run `docker compose`
+# against the host Docker daemon via the mounted `/var/run/docker.sock`.
+# Note: `docker-cli-compose` provides the `docker compose` plugin on Alpine.
+RUN apk add --no-cache git docker-cli docker-cli-compose
+
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules

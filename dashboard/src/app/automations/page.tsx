@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
 import {
   createScheduleFromTemplate,
@@ -7,6 +6,7 @@ import {
   toggleScheduleEnabled,
   updateSchedule,
 } from "./actions";
+import { TopNav } from "@/app/_components/TopNav";
 
 export const dynamic = "force-dynamic";
 
@@ -23,22 +23,14 @@ export default async function AutomationsPage() {
     { id: "devops_radar", name: "DevOps tech radar digest" },
     { id: "todo_triage", name: "Inbox/tasks triage (placeholder)" },
     { id: "services_ping", name: "Service health ping (placeholder)" },
+    { id: "budget_digest", name: "Budget daily digest" },
+    { id: "gmail_triage", name: "Gmail inbox triage (runs on laptop companion)" },
     { id: "combine_scan", name: "THE-COMBINE scan (requires laptop companion)" },
   ];
 
   return (
     <main className="min-h-screen">
-      <header className="border-b border-white/10 bg-zinc-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <div>
-            <h1 className="text-lg font-semibold">Automations</h1>
-            <p className="text-xs text-white/60">Configure which agents run on schedule (and run them now).</p>
-          </div>
-          <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/">
-            Back
-          </Link>
-        </div>
-      </header>
+      <TopNav title="Automations" subtitle="Configure which agents run on schedule (and run them now)." />
 
       <section className="mx-auto max-w-5xl px-6 py-6">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">

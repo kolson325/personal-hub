@@ -1,6 +1,8 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { runDevOpsAgent } from "./actions";
+import { TopNav } from "@/app/_components/TopNav";
+import { AskCodex } from "@/app/_components/AskCodex";
+import { queueCodexTask } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -13,19 +15,10 @@ export default async function DevOpsAgentPage() {
 
   return (
     <main className="min-h-screen">
-      <header className="border-b border-white/10 bg-zinc-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <div>
-            <h1 className="text-lg font-semibold">DevOps Tech Radar Agent</h1>
-            <p className="text-xs text-white/60">
-              New tech summaries + how to implement them (Octopus/Jenkins/Backstage/Atlassian/Teams/JBoss/Grafana/Kibana).
-            </p>
-          </div>
-          <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/">
-            Back
-          </Link>
-        </div>
-      </header>
+      <TopNav
+        title="DevOps Tech Radar Agent"
+        subtitle="New tech summaries + implementation ideas (Octopus/Jenkins/Backstage/Atlassian/Teams/JBoss/Grafana/Kibana)."
+      />
 
       <section className="mx-auto max-w-4xl px-6 py-6">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
@@ -68,6 +61,15 @@ export default async function DevOpsAgentPage() {
               ))
             )}
           </div>
+        </div>
+
+        <div className="mt-4">
+          <AskCodex
+            title="Ask Codex (devops)"
+            context="devops"
+            placeholder="Examples: “What’s new in OpenTelemetry and how to roll it out at work?”, “Backstage 2026 best practices”, “JBoss → modern platform migration plan.”"
+            action={queueCodexTask}
+          />
         </div>
       </section>
     </main>

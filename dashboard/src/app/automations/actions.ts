@@ -110,6 +110,19 @@ const TEMPLATE_DEFS: Record<
     scheduleType: "INTERVAL",
     intervalMinutes: 60,
   },
+  budget_digest: {
+    key: "budget_digest",
+    name: "Budget daily digest",
+    scheduleType: "DAILY",
+    timeOfDay: "07:10",
+  },
+  gmail_triage: {
+    key: "gmail_triage",
+    name: "Gmail inbox triage (runs on laptop companion)",
+    scheduleType: "DAILY",
+    timeOfDay: "07:20",
+    config: { requiresLocalCompanion: true },
+  },
   combine_scan: {
     key: "combine_scan",
     name: "THE-COMBINE scan (requires laptop companion)",
@@ -221,12 +234,18 @@ export async function deleteSchedule(id: string) {
 export async function runScheduleNow(id: string) {
   const s = await prisma.automationSchedule.findUnique({ where: { id } });
   if (!s) return;
+  let requiresLocal = false;
+  try {
+    const cfg = s.configJson ? JSON.parse(s.configJson) : null;
+    requiresLocal = Boolean(cfg?.requiresLocalCompanion);
+  } catch {}
   await prisma.agentJob.create({
     data: {
       kind: "automation",
       scheduleId: s.id,
       payloadJson: JSON.stringify({ key: s.key, configJson: s.configJson }),
       status: "QUEUED",
+      runner: requiresLocal ? "LOCAL" : "VPS",
     },
   });
   revalidatePath("/automations");

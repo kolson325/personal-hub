@@ -1,6 +1,8 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { runBizDevAgent } from "./actions";
+import { TopNav } from "@/app/_components/TopNav";
+import { AskCodex } from "@/app/_components/AskCodex";
+import { queueCodexTask } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -13,19 +15,10 @@ export default async function BizDevAgentPage() {
 
   return (
     <main className="min-h-screen">
-      <header className="border-b border-white/10 bg-zinc-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <div>
-            <h1 className="text-lg font-semibold">BizDev Agent</h1>
-            <p className="text-xs text-white/60">
-              Research target corporations for snow removal + landscaping, then draft outreach.
-            </p>
-          </div>
-          <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/">
-            Back
-          </Link>
-        </div>
-      </header>
+      <TopNav
+        title="BizDev Agent"
+        subtitle="Research target corporations for snow removal + landscaping, then draft outreach."
+      />
 
       <section className="mx-auto max-w-4xl px-6 py-6">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
@@ -71,6 +64,15 @@ export default async function BizDevAgentPage() {
               ))
             )}
           </div>
+        </div>
+
+        <div className="mt-4">
+          <AskCodex
+            title="Ask Codex (bizdev)"
+            context="bizdev"
+            placeholder="Examples: “Find 20 woke multi-site targets in Western PA/OH”, “Draft outreach email to facilities manager”, “Build a contact list plan.”"
+            action={queueCodexTask}
+          />
         </div>
       </section>
     </main>

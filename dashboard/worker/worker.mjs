@@ -93,7 +93,7 @@ function computeNextRunAt(schedule, from = new Date()) {
 
 async function claimJob() {
   const job = await prisma.agentJob.findFirst({
-    where: { status: "QUEUED" },
+    where: { status: "QUEUED", runner: "VPS" },
     orderBy: { createdAt: "asc" },
   });
   if (!job) return null;
@@ -143,6 +143,11 @@ async function tickSchedules() {
     if (existing) continue;
 
     const nextRunAt = computeNextRunAt(s, now);
+    let runner = "VPS";
+    try {
+      const cfg = s.configJson ? JSON.parse(s.configJson) : null;
+      if (cfg?.requiresLocalCompanion) runner = "LOCAL";
+    } catch {}
     await prisma.$transaction([
       prisma.agentJob.create({
         data: {
@@ -150,6 +155,7 @@ async function tickSchedules() {
           scheduleId: s.id,
           payloadJson: JSON.stringify({ key: s.key, configJson: s.configJson }),
           status: "QUEUED",
+          runner,
         },
       }),
       prisma.automationSchedule.update({ where: { id: s.id }, data: { nextRunAt } }),
@@ -290,6 +296,43 @@ async function handleJob(job) {
           : results.map((r) => `- ${r.name}: ${r.url} → ${r.status}${r.error ? ` (${r.error})` : ""}`).join("\n"));
       await runAgentRun("services", {}, md);
       await finishJob(job.id, "SUCCEEDED", "Service ping saved to Agent Runs.", null);
+      return;
+    }
+
+    if (key === "budget_digest") {
+      const since = new Date(Date.now() - 30 * 86400 * 1000);
+      const entries = await prisma.budgetEntry.findMany({ where: { occurredOn: { gte: since } } });
+      const income = entries.filter((e) => e.amountCents > 0).reduce((a, e) => a + e.amountCents, 0);
+      const expenses = entries.filter((e) => e.amountCents < 0).reduce((a, e) => a + e.amountCents, 0);
+      const net = income + expenses;
+
+      const byCat = new Map();
+      for (const e of entries) {
+        if (e.amountCents >= 0) continue;
+        const cat = String(e.category ?? "Uncategorized").trim() || "Uncategorized";
+        byCat.set(cat, (byCat.get(cat) ?? 0) + e.amountCents);
+      }
+      const topCats = Array.from(byCat.entries())
+        .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+        .slice(0, 10);
+
+      const fmt = (cents) => {
+        const sign = cents < 0 ? "-" : "";
+        const abs = Math.abs(cents);
+        return `${sign}$${(abs / 100).toFixed(2)}`;
+      };
+
+      const md =
+        `## Budget Digest (last 30 days)\n\n` +
+        `- Income: ${fmt(income)}\n` +
+        `- Expenses: ${fmt(expenses)}\n` +
+        `- Net: ${fmt(net)}\n\n` +
+        `### Top categories (expenses)\n` +
+        (topCats.length === 0 ? `- (no expenses)\n` : topCats.map(([k, v]) => `- ${k}: ${fmt(v)}`).join("\n")) +
+        `\n\nNext step (optional): tag entries consistently (Gas/Food/Bills/etc.) for clearer insights.\n`;
+
+      await runAgentRun("budget", {}, md);
+      await finishJob(job.id, "SUCCEEDED", "Budget digest saved to Agent Runs.", null);
       return;
     }
 

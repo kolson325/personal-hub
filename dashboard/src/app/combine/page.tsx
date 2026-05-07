@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { TopNav } from "@/app/_components/TopNav";
 
 export const dynamic = "force-dynamic";
 
@@ -12,17 +12,7 @@ export default async function CombinePage() {
 
   return (
     <main className="min-h-screen">
-      <header className="border-b border-white/10 bg-zinc-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <div>
-            <h1 className="text-lg font-semibold">THE-COMBINE Updates</h1>
-            <p className="text-xs text-white/60">Shows scans reported by the local companion (or later, GitHub).</p>
-          </div>
-          <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/">
-            Back
-          </Link>
-        </div>
-      </header>
+      <TopNav title="THE-COMBINE Updates" subtitle="Scans reported by your laptop companion (or later, GitHub)." />
 
       <section className="mx-auto max-w-4xl px-6 py-6">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">

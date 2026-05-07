@@ -1,6 +1,8 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { addService, removeService } from "./actions";
+import { TopNav } from "@/app/_components/TopNav";
+import { AskCodex } from "@/app/_components/AskCodex";
+import { queueCodexTask } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -9,17 +11,7 @@ export default async function ServicesPage() {
 
   return (
     <main className="min-h-screen">
-      <header className="border-b border-white/10 bg-zinc-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <div>
-            <h1 className="text-lg font-semibold">Services</h1>
-            <p className="text-xs text-white/60">Links to each codebase/service you’re running.</p>
-          </div>
-          <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/">
-            Back
-          </Link>
-        </div>
-      </header>
+      <TopNav title="Services" subtitle="Links to each codebase/service you’re running." />
 
       <section className="mx-auto max-w-4xl px-6 py-6">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
@@ -74,6 +66,15 @@ export default async function ServicesPage() {
               ))
             )}
           </ul>
+        </div>
+
+        <div className="mt-4">
+          <AskCodex
+            title="Ask Codex (services)"
+            context="services"
+            placeholder='Examples: “What services should I add next?”, “Suggest a deployment layout for 5 codebases”, “Create a monitoring checklist.”'
+            action={queueCodexTask}
+          />
         </div>
       </section>
     </main>

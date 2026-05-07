@@ -76,6 +76,23 @@ async function handleJob(job) {
       return;
     }
 
+    if (job.kind === "codex") {
+      const text = String(payload.text ?? "").trim();
+      const context = String(payload.context ?? "").trim();
+      const ok = await requireApproval(`Codex task requested${context ? ` (${context})` : ""}:\n${text}\nProceed?`);
+      if (!ok) {
+        await report(job.id, "FAILED", undefined, "User declined Codex task.");
+        return;
+      }
+      await report(
+        job.id,
+        "SUCCEEDED",
+        `Codex task acknowledged.\n\ncontext: ${context || "—"}\n\nrequest:\n${text}\n\nNext step: implement this via Codex and paste any results back as a note/run.`,
+        undefined
+      );
+      return;
+    }
+
     if (job.kind === "shell") {
       const command = String(payload.text ?? "").trim();
       if (!command) {
@@ -122,6 +139,28 @@ async function handleJob(job) {
       return;
     }
 
+    if (job.kind === "automation") {
+      const key = String(payload.key ?? "").trim();
+      const ok = await requireApproval(`Run automation on laptop?\n${key || "(missing key)"}\nProceed?`);
+      if (!ok) {
+        await report(job.id, "FAILED", undefined, "User declined automation.");
+        return;
+      }
+
+      if (key === "gmail_triage") {
+        await report(
+          job.id,
+          "SUCCEEDED",
+          "Gmail triage placeholder: open Codex and ask it to triage your inbox, then paste results here later.\n\nNext step: wire this companion to Gmail (OAuth) or have Codex write results back automatically.",
+          undefined
+        );
+        return;
+      }
+
+      await report(job.id, "FAILED", undefined, `Unknown automation key for LOCAL runner: ${key}`);
+      return;
+    }
+
     await report(job.id, "FAILED", undefined, `Unknown job kind: ${job.kind}`);
   } catch (e) {
     await report(job.id, "FAILED", undefined, String(e));
@@ -146,4 +185,3 @@ while (true) {
     await new Promise((r) => setTimeout(r, 5000));
   }
 }
-
