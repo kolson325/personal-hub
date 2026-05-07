@@ -120,13 +120,22 @@ The dashboard “Deploy” page queues a `redeploy` job.
 
 The VPS `worker` container:
 - runs `git pull` in `/repo`
-- runs `docker compose up -d --build` from `/repo/infra`
+- runs `docker compose up -d` from `/repo/infra` (build is optional)
 
 If redeploy fails, check:
 - `infra/docker-compose.yml` → `worker` service mounts:
   - `/var/run/docker.sock`
   - repo at `/repo`
 - `dashboard/Dockerfile` includes `git` + `docker` + `docker compose` plugin.
+
+Note on small VPS plans (1GB RAM):
+- Building images during a redeploy can cause OOM kills.
+- Default behavior is **no build** on redeploy (`REDEPLOY_BUILD=0`).
+- When you need to apply code changes, run a manual build on the VPS:
+  ```bash
+  cd /opt/personal-hub/infra
+  docker compose up -d --build
+  ```
 
 ## 5) Laptop-only storage (important reality check)
 
@@ -160,4 +169,3 @@ npm run companion
 ```
 
 The companion will prompt for approval before doing anything sensitive.
-

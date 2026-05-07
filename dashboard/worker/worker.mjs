@@ -345,6 +345,7 @@ async function handleJob(job) {
     const composePath = process.env.DEPLOY_COMPOSE_PATH ?? "/repo/infra";
     const repoDir = process.env.REPO_DIR ?? "/repo";
     const doGitPull = (process.env.GIT_PULL ?? "").trim() === "1";
+    const doBuild = (process.env.REDEPLOY_BUILD ?? "").trim() === "1";
 
     const allowedTargets = new Set(["dashboard", "centralhub", "bizdev-agent", "devops-agent", "combine-monitor"]);
     if (!allowedTargets.has(target)) {
@@ -361,7 +362,7 @@ async function handleJob(job) {
     }
     // Ensure the worker doesn't require buildx/Bake support inside its image.
     steps.push(`COMPOSE_BAKE=0 docker compose pull`);
-    steps.push(`COMPOSE_BAKE=0 docker compose up -d --remove-orphans --build`);
+    steps.push(`COMPOSE_BAKE=0 docker compose up -d --remove-orphans${doBuild ? " --build" : ""}`);
     const logs = [];
     let ok = true;
     for (const step of steps) {

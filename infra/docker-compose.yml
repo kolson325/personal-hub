@@ -29,6 +29,9 @@ services:
       WORKER_ID: vps-worker
       REPO_DIR: /repo
       GIT_PULL: "1"
+      # On 1GB VPS instances, building images during redeploy can OOM-kill containers.
+      # Keep this off (0) and rely on manual `docker compose up -d --build` when needed.
+      REDEPLOY_BUILD: ${REDEPLOY_BUILD:-0}
       ALLSITE_CENTRAL_HUB_URL: ${ALLSITE_CENTRAL_HUB_URL}
     volumes:
       - dashboard_data:/data
