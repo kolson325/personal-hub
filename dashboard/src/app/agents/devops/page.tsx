@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { runDevOpsAgent } from "./actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function DevOpsAgentPage() {
   const runs = await prisma.agentRun.findMany({
     where: { agentType: "devops" },
@@ -65,4 +67,3 @@ export default async function DevOpsAgentPage() {
     </main>
   );
 }
-

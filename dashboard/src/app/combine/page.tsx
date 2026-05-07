@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export default async function CombinePage() {
   const jobs = await prisma.agentJob.findMany({
     where: { kind: "combine_scan" },
@@ -63,4 +65,3 @@ export default async function CombinePage() {
     </main>
   );
 }
-

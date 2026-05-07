@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { queueRedeploy } from "./actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function DeployPage() {
   const queued = await prisma.agentJob.findMany({
     where: { status: "QUEUED", kind: "redeploy" },

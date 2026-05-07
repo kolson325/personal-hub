@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { addTodo, markDone, reopen, removeTodo, togglePinned } from "./actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function TodoPage() {
   const [open, done] = await Promise.all([
     prisma.todoItem.findMany({

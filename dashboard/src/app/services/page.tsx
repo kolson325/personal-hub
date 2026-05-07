@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { addService, removeService } from "./actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function ServicesPage() {
   const services = await prisma.service.findMany({ orderBy: { createdAt: "asc" } });
 

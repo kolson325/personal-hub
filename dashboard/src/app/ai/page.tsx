@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { cancelJob, queueJob } from "./actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function AiPage() {
   const jobs = await prisma.agentJob.findMany({ orderBy: { createdAt: "desc" }, take: 25 });
 

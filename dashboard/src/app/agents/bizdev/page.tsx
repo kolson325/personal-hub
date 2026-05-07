@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { runBizDevAgent } from "./actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function BizDevAgentPage() {
   const runs = await prisma.agentRun.findMany({
     where: { agentType: "bizdev" },
@@ -68,4 +70,3 @@ export default async function BizDevAgentPage() {
     </main>
   );
 }
-

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { logout } from "@/app/login/actions";
 
+export const dynamic = "force-dynamic";
+
 async function getCounts() {
   const [openTodos, queuedJobs] = await Promise.all([
     prisma.todoItem.count({ where: { status: "OPEN" } }),
