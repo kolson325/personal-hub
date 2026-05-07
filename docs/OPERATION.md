@@ -189,6 +189,15 @@ Now the public URL will serve your laptop-hosted dashboard, and the DB stays on 
 
 The “Ask Codex” boxes queue `AgentJob(kind="codex", runner="LOCAL")`.
 
+UI:
+- Codex chat page: `/codex` (conversation view + live “active run” panel)
+- Jobs page: `/ai` (non-chat jobs like `shell`, `combine_scan`, notes)
+
+Concurrency rule:
+- Only **one** LOCAL Codex run can be active at a time.
+- If you submit a second request while one is `QUEUED`/`CLAIMED`, the UI will show:
+  “Another Codex run is already in progress — please wait until it finishes.”
+
 To run these jobs on your laptop:
 1) Copy `AGENT_TOKEN` from the VPS `.env`:
    - `/opt/personal-hub/infra/.env`
@@ -196,12 +205,22 @@ To run these jobs on your laptop:
    - `DASHBOARD_URL="https://personal.<VPS_IP>.nip.io"`
    - `AGENT_TOKEN="..."`
    - `AGENT_ID="kolson-mac"`
-   - `COMBINE_REPO_PATH="/absolute/path/to/THE-COMBINE"`
+    - `COMBINE_REPO_PATH="/absolute/path/to/THE-COMBINE"`
+    - Optional (Codex exec):
+      - `CODEX_CWD="/absolute/path/to/a/default/repo"`
+      - `CODEX_SANDBOX="workspace-write"` (or `read-only`)
 3) Run the companion:
 ```bash
 cd dashboard
 npm install
 npm run companion
 ```
+
+Codex execution:
+- When you approve a `codex` job, the companion runs `codex exec` and streams progress back into `/codex`.
+- Make sure Codex CLI is installed and logged in:
+  ```bash
+  codex login
+  ```
 
 The companion will prompt for approval before doing anything sensitive.

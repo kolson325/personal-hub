@@ -74,5 +74,5 @@ npm run companion
 
 Tip: LOCAL-only jobs include:
 - `shell` and `combine_scan` jobs queued from `/ai`
-- `codex` jobs queued from “Ask Codex” boxes
+- `codex` jobs queued from “Ask Codex” boxes (view chat + status on `/codex`)
 - `gmail_triage` automation (placeholder)

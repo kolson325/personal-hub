@@ -251,19 +251,39 @@ app.post("/api/update", async (_req, res) => {
   );
   await fs.appendFile(updateLogPath, `\n\n=== Update started ${lastUpdateStartedAt.toISOString()} ===\n`);
 
-  // Use a hard timeout so a stalled upstream request can't wedge the container forever.
-  updateProcess = spawn("timeout", ["-k", "5", String(maxSeconds), process.execPath, updaterPath], {
+  // Use an in-process hard timeout so a stalled upstream request can't wedge the container forever.
+  // (Alpine images don’t ship with GNU `timeout` by default.)
+  updateProcess = spawn(process.execPath, [updaterPath], {
     cwd: __dirname,
     stdio: "pipe",
     env: { ...process.env }
   });
 
+  const killTimer = setTimeout(() => {
+    try {
+      fs.appendFile(updateLogPath, `\n=== Update timed out after ${maxSeconds}s; sending SIGTERM ===\n`).catch(() => {});
+      updateProcess?.kill("SIGTERM");
+      setTimeout(() => {
+        try {
+          fs.appendFile(updateLogPath, `\n=== Update still running; sending SIGKILL ===\n`).catch(() => {});
+          updateProcess?.kill("SIGKILL");
+        } catch {
+          // ignore
+        }
+      }, 5000);
+    } catch {
+      // ignore
+    }
+  }, maxSeconds * 1000);
+
   updateProcess.stdout.on("data", (d) => { fs.appendFile(updateLogPath, String(d)).catch(() => {}); });
   updateProcess.stderr.on("data", (d) => { fs.appendFile(updateLogPath, String(d)).catch(() => {}); });
-  updateProcess.once("exit", (code) => {
+  updateProcess.once("exit", (code, signal) => {
+    clearTimeout(killTimer);
     const finishedAt = new Date();
-    const state = code === 0 ? "succeeded" : "failed";
-    const message = code === 0 ? "Update finished" : `Update failed (exit ${code})`;
+    const ok = code === 0 && !signal;
+    const state = ok ? "succeeded" : "failed";
+    const message = ok ? "Update finished" : `Update failed (${signal ? `signal ${signal}` : `exit ${code}`})`;
     updateProcess = null;
     fs.writeFile(
       updateStatusPath,
@@ -273,7 +293,7 @@ app.post("/api/update", async (_req, res) => {
         2
       )
     ).catch(() => {});
-    fs.appendFile(updateLogPath, `\n=== Update finished ${finishedAt.toISOString()} (exit ${code}) ===\n`).catch(() => {});
+    fs.appendFile(updateLogPath, `\n=== Update finished ${finishedAt.toISOString()} (${signal ? `signal ${signal}` : `exit ${code}`}) ===\n`).catch(() => {});
   });
 
   res.status(202).json({ ok: true, status: await readUpdateStatus() });

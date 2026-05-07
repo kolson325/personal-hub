@@ -1,7 +1,8 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import readline from "node:readline/promises";
+import { createInterface } from "node:readline";
 
 function loadEnvLocal() {
   const root = resolve(new URL("..", import.meta.url).pathname);
@@ -35,22 +36,29 @@ if (!AGENT_TOKEN.trim()) {
 }
 
 async function pollOnce() {
-  const res = await fetch(`${DASHBOARD_URL}/api/agent/poll?agent_id=${encodeURIComponent(AGENT_ID)}`, {
+  const res = await fetch(
+    `${DASHBOARD_URL}/api/agent/poll?agent_id=${encodeURIComponent(AGENT_ID)}&runner=LOCAL`,
+    {
     headers: { "x-agent-token": AGENT_TOKEN },
-  });
+    }
+  );
   const data = await res.json().catch(() => null);
   if (!res.ok || !data?.ok) throw new Error(`Poll failed: ${res.status} ${JSON.stringify(data)}`);
   return data.job;
 }
 
-async function report(id, status, resultText, errorText) {
+async function report(id, status, resultText, errorText, append) {
   const res = await fetch(`${DASHBOARD_URL}/api/agent/report`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-agent-token": AGENT_TOKEN },
-    body: JSON.stringify({ id, status, resultText, errorText }),
+    body: JSON.stringify({ id, status, resultText, errorText, append }),
   });
   const data = await res.json().catch(() => null);
   if (!res.ok || !data?.ok) throw new Error(`Report failed: ${res.status} ${JSON.stringify(data)}`);
+}
+
+async function progress(id, line) {
+  await report(id, "CLAIMED", line, undefined, true);
 }
 
 function runShell(command) {
@@ -84,12 +92,102 @@ async function handleJob(job) {
         await report(job.id, "FAILED", undefined, "User declined Codex task.");
         return;
       }
-      await report(
-        job.id,
-        "SUCCEEDED",
-        `Codex task acknowledged.\n\ncontext: ${context || "—"}\n\nrequest:\n${text}\n\nNext step: implement this via Codex and paste any results back as a note/run.`,
-        undefined
-      );
+
+      const workdir =
+        context === "combine" && COMBINE_REPO_PATH.trim()
+          ? COMBINE_REPO_PATH
+          : process.env.CODEX_CWD?.trim() || process.cwd();
+
+      await report(job.id, "CLAIMED", `Starting Codex…\nworkdir: ${workdir}\ncontext: ${context || "—"}`, undefined);
+
+      const codexArgs = [
+        "exec",
+        "--json",
+        "--ephemeral",
+        "--color",
+        "never",
+        "--skip-git-repo-check",
+        "-s",
+        process.env.CODEX_SANDBOX?.trim() || "workspace-write",
+        "-C",
+        workdir,
+        text,
+      ];
+
+      const child = spawn("codex", codexArgs, { stdio: ["ignore", "pipe", "pipe"] });
+
+      let agentText = "";
+      let sawJson = false;
+      let lastProgressAt = Date.now();
+
+      const stdout = createInterface({ input: child.stdout });
+      const stderr = createInterface({ input: child.stderr });
+
+      stdout.on("line", (line) => {
+        const trimmed = String(line ?? "").trim();
+        if (!trimmed) return;
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+          sawJson = true;
+          try {
+            const evt = JSON.parse(trimmed);
+            if (evt?.method === "item/agentMessage/delta" && typeof evt?.params?.delta === "string") {
+              agentText += evt.params.delta;
+              void progress(job.id, evt.params.delta);
+              lastProgressAt = Date.now();
+              return;
+            }
+            if (evt?.type === "item.completed" && evt?.item?.type === "agent_message" && typeof evt.item.text === "string") {
+              agentText += (agentText ? "\n" : "") + evt.item.text;
+              void progress(job.id, evt.item.text);
+              lastProgressAt = Date.now();
+              return;
+            }
+            if (evt?.type === "turn.started") {
+              void progress(job.id, "Thinking…");
+              lastProgressAt = Date.now();
+              return;
+            }
+          } catch {
+            // fall through to raw logging
+          }
+        }
+
+        // Non-JSON noise: keep it minimal so the UI stays readable.
+        if (!sawJson && /WARN|ERROR|Reading additional input from stdin/i.test(trimmed)) return;
+        void progress(job.id, trimmed);
+        lastProgressAt = Date.now();
+      });
+
+      stderr.on("line", (line) => {
+        const trimmed = String(line ?? "").trim();
+        if (!trimmed) return;
+        if (/WARN|ERROR/i.test(trimmed)) {
+          void progress(job.id, trimmed);
+          lastProgressAt = Date.now();
+        }
+      });
+
+      const heartbeat = setInterval(() => {
+        if (Date.now() - lastProgressAt > 10_000) {
+          void progress(job.id, "…still working…");
+          lastProgressAt = Date.now();
+        }
+      }, 5000);
+
+      const exitCode = await new Promise((resolve) => {
+        child.on("close", (code) => resolve(code ?? 1));
+        child.on("error", () => resolve(1));
+      });
+
+      clearInterval(heartbeat);
+      stdout.close();
+      stderr.close();
+
+      if (exitCode === 0) {
+        await report(job.id, "SUCCEEDED", agentText.trim() || "Done.", undefined);
+      } else {
+        await report(job.id, "FAILED", agentText.trim() || undefined, `Codex exited with code ${exitCode}`);
+      }
       return;
     }
 

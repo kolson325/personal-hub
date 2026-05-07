@@ -34,6 +34,13 @@ function dollars(cents: number) {
   return `${sign}$${(abs / 100).toFixed(2)}`;
 }
 
+type AllsitePeriod = {
+  total?: number;
+  withIssues?: boolean;
+  critical?: unknown[];
+  timeline?: Array<Record<string, unknown>>;
+};
+
 async function getAllsiteSummary() {
   const base = process.env.ALLSITE_CENTRAL_HUB_URL ?? "https://allsitefacilities-centralhub.loca.lt";
   const url = new URL("/api/summary", base).toString();
@@ -44,28 +51,33 @@ async function getAllsiteSummary() {
       fetch(statusUrl, { cache: "no-store" }),
     ]);
     if (!summaryRes.ok) throw new Error(`summary HTTP ${summaryRes.status}`);
-    const summaryJson = (await summaryRes.json().catch(() => null)) as any;
-    const statusJson = statusRes.ok ? ((await statusRes.json().catch(() => null)) as any) : null;
-    const periods = summaryJson?.summary?.periods ?? null;
-    const today = periods?.today ?? null;
-    const yesterday = periods?.yesterday ?? null;
+    const summaryJson = (await summaryRes.json().catch(() => null)) as Record<string, unknown> | null;
+    const statusJson = statusRes.ok
+      ? ((await statusRes.json().catch(() => null)) as Record<string, unknown> | null)
+      : null;
+
+    const summary = (summaryJson?.summary as Record<string, unknown> | undefined) ?? null;
+    const periods = (summary?.periods as Record<string, unknown> | undefined) ?? null;
+    const today = (periods?.today as AllsitePeriod | undefined) ?? null;
+    const yesterday = (periods?.yesterday as AllsitePeriod | undefined) ?? null;
     return {
       ok: true as const,
       base,
       hasSnapshot: Boolean(summaryJson?.hasSnapshot),
-      periods,
+      periods: periods as unknown,
       today,
       yesterday,
       updateStatus: statusJson,
     };
   } catch (e) {
-    return { ok: false as const, base, error: String((e as any)?.message ?? e) };
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false as const, base, error: msg };
   }
 }
 
 export default async function DashboardHome() {
   const counts = await getCounts();
-  const [recentJobs, openTodos, agentRuns, schedules, allsite] = await Promise.all([
+  const [recentJobs, openTodos, agentRuns, schedules, allsite, activeCodex, lastCodex] = await Promise.all([
     prisma.agentJob.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
     prisma.todoItem.findMany({
       where: { status: "OPEN" },
@@ -82,6 +94,14 @@ export default async function DashboardHome() {
       orderBy: { updatedAt: "desc" },
     }),
     getAllsiteSummary(),
+    prisma.agentJob.findFirst({
+      where: { kind: "codex", runner: "LOCAL", status: { in: ["QUEUED", "CLAIMED"] } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.agentJob.findFirst({
+      where: { kind: "codex", runner: "LOCAL", status: { in: ["SUCCEEDED", "FAILED"] } },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
   const scheduleByKey = new Map(schedules.map((s) => [s.key, s]));
 
@@ -125,8 +145,11 @@ export default async function DashboardHome() {
             <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/deploy">
               Deploy
             </Link>
-            <Link className="rounded-xl bg-fuchsia-500 px-3 py-2 text-sm font-semibold text-black hover:bg-fuchsia-400" href="/ai">
-              AI
+            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/ai">
+              Jobs
+            </Link>
+            <Link className="rounded-xl bg-fuchsia-500 px-3 py-2 text-sm font-semibold text-black hover:bg-fuchsia-400" href="/codex">
+              Codex
             </Link>
             <form action={logout}>
               <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">
@@ -270,6 +293,41 @@ export default async function DashboardHome() {
           </div>
 
           <div className="lg:col-span-5">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">Codex</div>
+                  <div className="mt-1 text-sm text-white/70">Chat-style LOCAL runs (single in-flight).</div>
+                </div>
+                <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/codex">
+                  Open
+                </Link>
+              </div>
+
+              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
+                Active:{" "}
+                <span className="text-white/80">
+                  {activeCodex
+                    ? `${activeCodex.status} • ${activeCodex.createdAt.toISOString().replace("T", " ").slice(0, 19)}`
+                    : "—"}
+                </span>
+              </div>
+
+              {activeCodex?.resultText ? (
+                <pre className="mt-3 max-h-40 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/80">
+                  {activeCodex.resultText}
+                </pre>
+              ) : lastCodex?.resultText ? (
+                <pre className="mt-3 max-h-40 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/80">
+                  {lastCodex.resultText}
+                </pre>
+              ) : null}
+
+              <div className="mt-3">
+                <AskCodex title="Ask Codex" action={queueCodexTask} />
+              </div>
+            </div>
+
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -418,11 +476,11 @@ export default async function DashboardHome() {
                     <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Today (latest)</div>
                     <div className="mt-2 grid gap-2">
                       {Array.isArray(allsite.today?.timeline) && allsite.today.timeline.length > 0 ? (
-                        allsite.today.timeline.slice(0, 6).map((t: any, idx: number) => (
+                        allsite.today.timeline.slice(0, 6).map((t: Record<string, unknown>, idx: number) => (
                           <div key={idx} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
                             <div className="flex items-center justify-between gap-3">
                               <div className="truncate text-sm font-medium">{String(t.site ?? "Site")}</div>
-                              <div className="text-xs text-white/60">{t.suspect ? "⚠︎" : "OK"}</div>
+                              <div className="text-xs text-white/60">{Boolean(t.suspect) ? "⚠︎" : "OK"}</div>
                             </div>
                             <div className="mt-1 text-xs text-white/50">
                               {String(t.vendor ?? "")} • {String(t.formName ?? "")}

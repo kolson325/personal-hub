@@ -174,7 +174,18 @@ export async function toggleScheduleEnabled(id: string) {
   const enabled = !s.enabled;
   await prisma.automationSchedule.update({
     where: { id },
-    data: { enabled, nextRunAt: enabled ? (s.nextRunAt ?? computeNextRunAt(s as any)) : null },
+    data: {
+      enabled,
+      nextRunAt: enabled
+        ? s.nextRunAt ??
+          computeNextRunAt({
+            scheduleType: s.scheduleType,
+            intervalMinutes: s.intervalMinutes,
+            timeOfDay: s.timeOfDay,
+            daysOfWeek: s.daysOfWeek,
+          })
+        : null,
+    },
   });
   revalidatePath("/automations");
   revalidatePath("/");
@@ -185,7 +196,9 @@ export async function updateSchedule(formData: FormData) {
   if (!id) return;
 
   const name = String(formData.get("name") ?? "").trim() || "Automation";
-  const scheduleType = String(formData.get("scheduleType") ?? "INTERVAL").trim() as any;
+  const scheduleTypeRaw = String(formData.get("scheduleType") ?? "INTERVAL").trim();
+  const scheduleType: "INTERVAL" | "DAILY" | "WEEKLY" =
+    scheduleTypeRaw === "DAILY" || scheduleTypeRaw === "WEEKLY" ? scheduleTypeRaw : "INTERVAL";
   const intervalMinutesRaw = String(formData.get("intervalMinutes") ?? "").trim();
   const intervalMinutes = intervalMinutesRaw ? Math.max(1, Math.floor(Number(intervalMinutesRaw) || 0)) : null;
 
@@ -200,11 +213,11 @@ export async function updateSchedule(formData: FormData) {
   const nextRunAt = cur.enabled
     ? computeNextRunAt(
         {
-          scheduleType: scheduleType === "DAILY" || scheduleType === "WEEKLY" ? scheduleType : "INTERVAL",
+          scheduleType,
           intervalMinutes,
           timeOfDay,
           daysOfWeek,
-        } as any,
+        },
         new Date()
       )
     : null;
@@ -213,7 +226,7 @@ export async function updateSchedule(formData: FormData) {
     where: { id },
     data: {
       name,
-      scheduleType: scheduleType === "DAILY" || scheduleType === "WEEKLY" ? scheduleType : "INTERVAL",
+      scheduleType,
       intervalMinutes,
       timeOfDay,
       daysOfWeek,

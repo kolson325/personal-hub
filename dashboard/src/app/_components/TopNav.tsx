@@ -23,7 +23,8 @@ export function TopNav({
           <NavLink href="/inbox">Inbox</NavLink>
           <NavLink href="/todo">Tasks</NavLink>
           <NavLink href="/budget">Budget</NavLink>
-          <NavLink href="/ai">AI</NavLink>
+          <NavLink href="/codex">Codex</NavLink>
+          <NavLink href="/ai">Jobs</NavLink>
           <NavLink href="/deploy">Deploy</NavLink>
           {right}
         </nav>

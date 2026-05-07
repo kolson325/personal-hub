@@ -9,11 +9,15 @@ export default async function AiPage() {
 
   return (
     <main className="min-h-screen">
-      <TopNav title="AI / Agent Jobs" subtitle="Queue tasks for your laptop companion + Codex hook." />
+      <TopNav title="Jobs" subtitle="Queue non-chat tasks for your laptop companion (shell, notes, scans)." />
 
       <section className="mx-auto max-w-4xl px-6 py-6">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <h2 className="text-sm font-semibold">Queue a job</h2>
+          <h2 className="text-sm font-semibold">Queue a job (non-chat)</h2>
+          <p className="mt-2 text-xs text-white/60">
+            For Codex chat runs, use the <a className="text-white/80 underline hover:text-white" href="/codex">Codex</a>{" "}
+            page (single in-flight run + conversation view).
+          </p>
           <form action={queueJob} className="mt-3 grid gap-2">
             <label className="text-xs font-medium text-white/70">Job type</label>
             <select name="kind" className="w-fit rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm">
