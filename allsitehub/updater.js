@@ -117,6 +117,17 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function boolEnv(name, def) {
+  const raw = String(process.env[name] ?? "").trim().toLowerCase();
+  if (!raw) return def;
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "y";
+}
+
+function numberEnv(name, def) {
+  const n = Number(process.env[name] ?? "");
+  return Number.isFinite(n) ? n : def;
+}
+
 function timeoutSignal(ms) {
   const n = Number(ms);
   const timeoutMs = Number.isFinite(n) ? Math.max(1000, Math.floor(n)) : 20000;
@@ -302,6 +313,10 @@ async function main() {
   // Enrich: fetch detailed submissions for the last ~8 days so we can compute true
   // per-site completion/issue status without opening SiteFotos.
   try {
+    const detailLimit = Math.max(5, Math.floor(numberEnv("SUBMISSION_DETAIL_LIMIT", 25)));
+    const enableImageChecks = boolEnv("ENABLE_IMAGE_HEAD_CHECKS", false);
+    const perDetailSleepMs = Math.max(0, Math.floor(numberEnv("SUBMISSION_DETAIL_SLEEP_MS", 75)));
+
     const submissions = Array.isArray(results.submittedFormsLast30Days) ? results.submittedFormsLast30Days : [];
     const nowEpoch = Math.floor(Date.now() / 1000);
     const cutoff = nowEpoch - 8 * 24 * 60 * 60;
@@ -318,7 +333,7 @@ async function main() {
       .filter((s) => typeof s?.form_created === "number" && s.form_created >= cutoff)
       .filter((s) => !s?.form_name || wantedForms.has(s.form_name))
       .sort((a, b) => (b.form_created ?? 0) - (a.form_created ?? 0))
-      .slice(0, 80);
+      .slice(0, detailLimit);
 
     const uniqueIds = Array.from(
       new Set(recent.map((s) => s?.form_sumission_id).filter((id) => typeof id === "number" && id > 0))
@@ -336,40 +351,42 @@ async function main() {
         // API returns an array with 1 item.
         if (Array.isArray(detail) && detail[0]) {
           details[String(id)] = detail[0];
-          // Lightweight "suspect" detection: HEAD-check up to 3 images (broken links / tiny files).
-          try {
-            const formJson = JSON.parse(detail[0].form_json ?? "{}");
-            const urls = [];
-            for (const p of formJson.pages ?? []) {
-              for (const e of p.elements ?? []) {
-                if (e?.type === "file" && Array.isArray(e.value)) {
-                  for (const item of e.value) {
-                    if (typeof item === "string" && item.startsWith("http")) urls.push(item);
-                    else if (item?.lrImageURL) urls.push(item.lrImageURL);
+          if (enableImageChecks) {
+            // Optional "suspect" detection: HEAD-check up to 3 images (broken links / tiny files).
+            try {
+              const formJson = JSON.parse(detail[0].form_json ?? "{}");
+              const urls = [];
+              for (const p of formJson.pages ?? []) {
+                for (const e of p.elements ?? []) {
+                  if (e?.type === "file" && Array.isArray(e.value)) {
+                    for (const item of e.value) {
+                      if (typeof item === "string" && item.startsWith("http")) urls.push(item);
+                      else if (item?.lrImageURL) urls.push(item.lrImageURL);
+                    }
                   }
-                }
-                if (e?.type === "service") {
-                  for (const se of e.elements ?? []) {
-                    if (se?.type === "file" && Array.isArray(se.value)) {
-                      for (const item of se.value) {
-                        if (typeof item === "string" && item.startsWith("http")) urls.push(item);
-                        else if (item?.lrImageURL) urls.push(item.lrImageURL);
+                  if (e?.type === "service") {
+                    for (const se of e.elements ?? []) {
+                      if (se?.type === "file" && Array.isArray(se.value)) {
+                        for (const item of se.value) {
+                          if (typeof item === "string" && item.startsWith("http")) urls.push(item);
+                          else if (item?.lrImageURL) urls.push(item.lrImageURL);
+                        }
                       }
                     }
                   }
                 }
               }
+              const uniq = Array.from(new Set(urls)).slice(0, 3);
+              const checks = [];
+              for (const u of uniq) {
+                const c = await headCheckImage(u);
+                checks.push({ url: u, ...c });
+                await sleep(120);
+              }
+              if (checks.length) imageChecks[String(id)] = checks;
+            } catch {
+              // ignore parsing/check errors
             }
-            const uniq = Array.from(new Set(urls)).slice(0, 3);
-            const checks = [];
-            for (const u of uniq) {
-              const c = await headCheckImage(u);
-              checks.push({ url: u, ...c });
-              await sleep(120);
-            }
-            if (checks.length) imageChecks[String(id)] = checks;
-          } catch {
-            // ignore parsing/check errors
           }
         }
       } catch (err) {
@@ -377,7 +394,7 @@ async function main() {
         errors[`submission:${id}`] = String(err?.message ?? err);
       }
       // Small spacing to reduce 429 risk.
-      await sleep(150);
+      if (perDetailSleepMs) await sleep(perDetailSleepMs);
       fetched += 1;
       if (fetched % 10 === 0) console.log(`Fetched submission details: ${fetched}/${uniqueIds.length}`);
     }
