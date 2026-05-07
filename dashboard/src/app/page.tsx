@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { logout } from "@/app/login/actions";
 import { addTodo, markDone, togglePinned } from "@/app/todo/actions";
+import { runScheduleNow } from "@/app/automations/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ async function getAllsiteSummary() {
 
 export default async function DashboardHome() {
   const counts = await getCounts();
-  const [recentJobs, openTodos, agentRuns, allsite] = await Promise.all([
+  const [recentJobs, openTodos, agentRuns, schedules, allsite] = await Promise.all([
     prisma.agentJob.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
     prisma.todoItem.findMany({
       where: { status: "OPEN" },
@@ -56,8 +57,13 @@ export default async function DashboardHome() {
       orderBy: { startedAt: "desc" },
       take: 8,
     }),
+    prisma.automationSchedule.findMany({
+      where: { key: { in: ["allsite_update", "bizdev_digest", "devops_radar", "todo_triage", "services_ping"] } },
+      orderBy: { updatedAt: "desc" },
+    }),
     getAllsiteSummary(),
   ]);
+  const scheduleByKey = new Map(schedules.map((s) => [s.key, s]));
 
   return (
     <main className="min-h-screen">
@@ -188,11 +194,13 @@ export default async function DashboardHome() {
                     title="BizDev"
                     href="/agents/bizdev"
                     last={agentRuns.find((r) => r.agentType === "bizdev") ?? null}
+                    schedule={scheduleByKey.get("bizdev_digest") ?? null}
                   />
                   <AgentMini
                     title="DevOps Radar"
                     href="/agents/devops"
                     last={agentRuns.find((r) => r.agentType === "devops") ?? null}
+                    schedule={scheduleByKey.get("devops_radar") ?? null}
                   />
                 </div>
               </div>
@@ -254,9 +262,27 @@ export default async function DashboardHome() {
                         {allsite.hasSnapshot ? "available" : "missing"}
                       </span>
                     </div>
-                    <a className="text-xs text-white/70 hover:text-white" href={`${allsite.base.replace(/\/$/, "")}/api/update`} target="_blank" rel="noreferrer">
-                      Run update →
-                    </a>
+                    <div className="flex items-center gap-2">
+                      {scheduleByKey.get("allsite_update") ? (
+                        <form action={runScheduleNow.bind(null, scheduleByKey.get("allsite_update")!.id)}>
+                          <button className="rounded-xl bg-fuchsia-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-fuchsia-400">
+                            Run now
+                          </button>
+                        </form>
+                      ) : (
+                        <Link className="text-xs text-white/70 hover:text-white" href="/automations">
+                          Schedule →
+                        </Link>
+                      )}
+                      <a
+                        className="text-xs text-white/70 hover:text-white"
+                        href={`${allsite.base.replace(/\/$/, "")}/api/update`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Update page →
+                      </a>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-sm text-white/70">Couldn’t load hub summary: {allsite.error}</div>
@@ -264,6 +290,19 @@ export default async function DashboardHome() {
                 {allsite.ok && allsite.updateStatus ? (
                   <div className="mt-2 text-xs text-white/60">
                     Update: {String(allsite.updateStatus.state ?? "—")} {allsite.updateStatus.running ? "(running)" : ""}
+                  </div>
+                ) : null}
+                {scheduleByKey.get("allsite_update") ? (
+                  <div className="mt-1 text-xs text-white/50">
+                    Automation:{" "}
+                    {scheduleByKey.get("allsite_update")!.enabled ? "on" : "off"} • next{" "}
+                    {scheduleByKey.get("allsite_update")!.nextRunAt
+                      ? scheduleByKey
+                          .get("allsite_update")!
+                          .nextRunAt!.toISOString()
+                          .replace("T", " ")
+                          .slice(0, 19)
+                      : "—"}
                   </div>
                 ) : null}
               </div>
@@ -320,10 +359,12 @@ function AgentMini({
   title,
   href,
   last,
+  schedule,
 }: {
   title: string;
   href: string;
   last: { status: string; startedAt: Date; outputMarkdown: string | null } | null;
+  schedule: { id: string; enabled: boolean; nextRunAt: Date | null } | null;
 }) {
   const preview =
     (last?.outputMarkdown ?? "").trim().split(/\r?\n/).filter(Boolean).slice(0, 3).join("\n") || "No runs yet.";
@@ -335,10 +376,31 @@ function AgentMini({
           <div className="mt-1 text-xs text-white/60">
             {last ? `${last.status} • ${last.startedAt.toISOString()}` : "—"}
           </div>
+          {schedule ? (
+            <div className="mt-1 text-xs text-white/50">
+              Automation: {schedule.enabled ? "on" : "off"} • next{" "}
+              {schedule.nextRunAt ? schedule.nextRunAt.toISOString().replace("T", " ").slice(0, 19) : "—"}
+            </div>
+          ) : (
+            <div className="mt-1 text-xs text-white/50">Automation: not scheduled</div>
+          )}
         </div>
-        <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/10" href={href}>
-          Open
-        </Link>
+        <div className="flex shrink-0 flex-col gap-2">
+          {schedule ? (
+            <form action={runScheduleNow.bind(null, schedule.id)}>
+              <button className="rounded-xl bg-fuchsia-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-fuchsia-400">
+                Run now
+              </button>
+            </form>
+          ) : (
+            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/10" href="/automations">
+              Schedule
+            </Link>
+          )}
+          <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/10" href={href}>
+            Open
+          </Link>
+        </div>
       </div>
       <pre className="mt-3 line-clamp-6 whitespace-pre-wrap text-xs text-white/70">{preview}</pre>
     </div>
