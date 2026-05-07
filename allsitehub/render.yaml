@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: sitefotos-dashboard
+    env: node
+    plan: free
+    buildCommand: npm install
+    # Prime snapshot on boot, then start the dashboard server.
+    startCommand: npm run update && npm start
+    autoDeploy: true
+    envVars:
+      - key: SITEFOTOS_API_KEY
+        sync: false
+      - key: SITEFOTOS_API_BASE_URL
+        sync: false
+      - key: SITEFOTOS_API_BEARER
+        value: "true"
+      - key: SITEFOTOS_ACCESS_CODE
+        sync: false
+
+  - type: cron
+    name: sitefotos-dashboard-refresh
+    env: node
+    plan: free
+    schedule: "0 13 * * *"
+    # Runs updater daily (13:00 UTC). Change schedule in Render if needed.
+    buildCommand: npm install
+    startCommand: npm run update
+    envVars:
+      - key: SITEFOTOS_API_KEY
+        sync: false
+      - key: SITEFOTOS_API_BASE_URL
+        sync: false
+      - key: SITEFOTOS_API_BEARER
+        value: "true"
+      - key: SITEFOTOS_ACCESS_CODE
+        sync: false

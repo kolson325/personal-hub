@@ -9,5 +9,5 @@
 
 {$ALLSITE_HUB_HOST} {
   encode gzip
-  reverse_proxy allsitehub:8080
+  reverse_proxy allsitehub:4545
 }

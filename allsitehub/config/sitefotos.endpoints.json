@@ -1,0 +1,38 @@
+{
+  "endpoints": {
+    "branches": { "path": "/v1/api/branches", "method": "GET" },
+    "users": { "path": "/v1/api/users", "method": "GET" },
+    "forms": { "path": "/v1/api/form", "method": "GET" },
+    "forms2": {
+      "path": "/node/forms/forms2",
+      "method": "GET",
+      "sendApiKey": false,
+      "accessCodeQueryParam": "accessCode",
+      "sendAccessCodeQuery": true,
+      "sendAccessCodeHeader": false,
+      "optional": true
+    },
+    "submittedFormsLast30Days": {
+      "path": "/v1/api/form/submitted",
+      "method": "GET",
+      "query": {
+        "start_date": "{{last_30d_start_epoch}}",
+        "end_date": "{{week_end_epoch}}"
+      }
+    },
+    "form2tableKeyBankExample": {
+      "path": "/node/reports/form2table",
+      "method": "GET",
+      "sendApiKey": false,
+      "accessCodeQueryParam": "accessCode",
+      "sendAccessCodeQuery": true,
+      "sendAccessCodeHeader": false,
+      "optional": true,
+      "query": {
+        "startdate": "{{week_start_epoch}}",
+        "enddate": "{{week_end_epoch}}",
+        "formid": 2069792
+      }
+    }
+  }
+}

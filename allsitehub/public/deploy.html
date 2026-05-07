@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Allsite Deploy</title>
+    <script>
+      if (window.location.protocol === "file:") {
+        window.location.replace("http://localhost:4545/deploy.html");
+      }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="min-h-screen bg-slate-950 text-slate-100">
+    <main class="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-4 py-8">
+      <section class="rounded-lg border border-slate-800 bg-slate-900/80 p-5 shadow-2xl shadow-black/20">
+        <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 class="text-xl font-semibold tracking-tight">Allsite Facilities Deploy</h1>
+            <p class="mt-1 text-sm text-slate-300">Deploy the latest VS Code project to the live local tunnel.</p>
+          </div>
+          <a
+            id="publicUrl"
+            class="rounded-md bg-slate-800 px-3 py-2 text-sm text-slate-100 hover:bg-slate-700"
+            href="https://allsitefacilities-centralhub.loca.lt"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open live site
+          </a>
+        </div>
+
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button id="deployBtn" class="rounded-md bg-sky-500 px-5 py-2 text-sm font-semibold text-slate-950 hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60">
+            Deploy latest changes
+          </button>
+          <button id="refreshStatusBtn" class="rounded-md bg-slate-800 px-4 py-2 text-sm hover:bg-slate-700">Refresh status</button>
+          <div id="statusBadge" class="text-sm text-slate-300">Status: loading</div>
+        </div>
+
+        <div class="mb-3 rounded-md border border-slate-800 bg-slate-950 p-3">
+          <div class="text-xs uppercase tracking-wide text-slate-500">Last message</div>
+          <div id="message" class="mt-1 text-sm text-slate-200">Loading status...</div>
+        </div>
+
+        <pre id="log" class="h-80 overflow-auto rounded-md border border-slate-800 bg-black p-3 text-xs leading-relaxed text-slate-300"></pre>
+      </section>
+    </main>
+
+    <script type="module" src="/deploy.js"></script>
+  </body>
+</html>

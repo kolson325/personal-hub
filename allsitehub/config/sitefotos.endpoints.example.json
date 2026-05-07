@@ -1,0 +1,37 @@
+{
+  "endpoints": {
+    "branches": { "path": "/v1/api/branches", "method": "GET" },
+    "users": { "path": "/v1/api/users", "method": "GET" },
+
+    "forms": { "path": "/v1/api/form", "method": "GET" },
+    "submittedFormsThisWeek": {
+      "path": "/v1/api/form/submitted",
+      "method": "GET",
+      "query": {
+        "start_date": "{{week_start_epoch}}",
+        "end_date": "{{week_end_epoch}}"
+      }
+    },
+
+    "workorders": {
+      "path": "/v1/api/workorder",
+      "method": "GET",
+      "query": {
+        "limit": 100,
+        "page": 1
+      }
+    },
+
+    "form2tableExample": {
+      "path": "/node/reports/form2table",
+      "method": "GET",
+      "sendApiKey": false,
+      "accessCodeQueryParam": "accessCode",
+      "query": {
+        "startdate": "{{week_start_epoch}}",
+        "enddate": "{{week_end_epoch}}",
+        "formid": 0
+      }
+    }
+  }
+}

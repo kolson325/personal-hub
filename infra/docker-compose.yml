@@ -49,13 +49,18 @@ services:
       - worker
 
   allsitehub:
-    image: caddy:2
+    build:
+      context: ../allsitehub
     restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4545
     volumes:
-      - ./allsitehub-index.html:/usr/share/caddy/index.html:ro
-    command: ["caddy", "file-server", "--root", "/usr/share/caddy", "--listen", ":8080"]
+      - allsitehub_data:/app/data
 
 volumes:
   dashboard_data:
   caddy_data:
   caddy_config:
+  allsitehub_data:
