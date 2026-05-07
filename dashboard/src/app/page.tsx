@@ -434,6 +434,15 @@ export default async function DashboardHome() {
                       )}
                     </div>
                   </div>
+
+                  <div className="mt-4">
+                    <AskCodex
+                      title="Ask Codex (allsite)"
+                      context="allsite"
+                      placeholder='Examples: “Summarize issues from today’s submissions”, “List critical sites to follow up”, “Draft a message to a vendor about missing photos.”'
+                      action={queueCodexTask}
+                    />
+                  </div>
                 </div>
               ) : null}
             </div>
