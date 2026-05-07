@@ -46,6 +46,7 @@ fi
 # Fast no-domain hostnames via nip.io (sslip.io also works)
 DASHBOARD_HOST="${DASHBOARD_HOST:-personal.${PUBLIC_IP}.nip.io}"
 ALLSITE_HUB_HOST="${ALLSITE_HUB_HOST:-allsite.${PUBLIC_IP}.nip.io}"
+ALLSITE_CENTRAL_HUB_URL="${ALLSITE_CENTRAL_HUB_URL:-https://${ALLSITE_HUB_HOST}}"
 
 if [[ ! -f .env ]]; then
   DASHBOARD_PASSWORD="$(openssl rand -base64 36 | tr -d '\n' | tr '/+' '_-')"
@@ -55,6 +56,7 @@ if [[ ! -f .env ]]; then
 CADDY_EMAIL="${EMAIL_FOR_TLS}"
 DASHBOARD_HOST="${DASHBOARD_HOST}"
 ALLSITE_HUB_HOST="${ALLSITE_HUB_HOST}"
+ALLSITE_CENTRAL_HUB_URL="${ALLSITE_CENTRAL_HUB_URL}"
 DASHBOARD_PASSWORD="${DASHBOARD_PASSWORD}"
 AGENT_TOKEN="${AGENT_TOKEN}"
 EOF
@@ -69,4 +71,3 @@ echo "Allsite hub (placeholder): https://${ALLSITE_HUB_HOST}"
 echo ""
 echo "Secrets saved in: ${APP_DIR}/repo/infra/.env"
 echo "Open ports required: 80 and 443"
-

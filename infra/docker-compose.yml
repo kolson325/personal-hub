@@ -8,6 +8,7 @@ services:
       DATABASE_URL: file:/data/app.db
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
       AGENT_TOKEN: ${AGENT_TOKEN}
+      ALLSITE_CENTRAL_HUB_URL: ${ALLSITE_CENTRAL_HUB_URL}
     volumes:
       - dashboard_data:/data
 

@@ -75,7 +75,7 @@ export default async function DashboardHome() {
             <div className="mt-4 flex flex-wrap gap-2">
               <a
                 className="rounded-lg bg-black px-3 py-2 text-sm font-medium text-white"
-                href="https://allsitefacilities-centralhub.loca.lt"
+                href={process.env.ALLSITE_CENTRAL_HUB_URL ?? "https://allsitefacilities-centralhub.loca.lt"}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -155,4 +155,3 @@ function Panel({
     </Link>
   );
 }
-
