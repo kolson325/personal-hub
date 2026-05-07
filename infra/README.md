@@ -4,6 +4,18 @@
 
 - Point `DASHBOARD_HOST` (e.g. `dash.yourdomain.com`) to your VPS public IP (A record).
 
+## Fastest (no domain purchase)
+
+You can skip buying a domain by using a wildcard-DNS hostname:
+
+- `personal.<VPS_IP>.nip.io`
+- `allsite.<VPS_IP>.nip.io`
+
+Then set:
+
+- `DASHBOARD_HOST="personal.<VPS_IP>.nip.io"`
+- `ALLSITE_HUB_HOST="allsite.<VPS_IP>.nip.io"`
+
 ## 2) On the VPS
 
 ```bash
@@ -13,6 +25,10 @@ cp .env.example .env
 # edit .env values
 docker compose up -d --build
 ```
+
+### One-command bootstrap (Ubuntu/Debian)
+
+Copy `infra/vps-bootstrap.sh` to the VPS and run it as root, or pipe it via `curl` once it’s in a GitHub repo.
 
 ## Redeploy buttons
 
