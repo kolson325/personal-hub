@@ -56,6 +56,7 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 4545
+      ALLSITEHUB_ADMIN_TOKEN: ${ALLSITEHUB_ADMIN_TOKEN}
     volumes:
       - allsitehub_data:/app/data
 

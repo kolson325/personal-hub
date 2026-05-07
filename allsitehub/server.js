@@ -139,7 +139,20 @@ app.post("/api/deploy", requireLocalRequest, async (_req, res) => {
   res.status(202).json({ ok: true, status: await readDeployStatus() });
 });
 
-app.post("/api/update", async (_req, res) => {
+function requireUpdateToken(req, res, next) {
+  const token = String(process.env.ALLSITEHUB_ADMIN_TOKEN ?? "").trim();
+  if (!token) {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(403).json({ ok: false, error: "Update disabled (missing ALLSITEHUB_ADMIN_TOKEN)." });
+    }
+    return next();
+  }
+  const got = String(req.get("x-admin-token") ?? req.query.token ?? "").trim();
+  if (got && got === token) return next();
+  return res.status(401).json({ ok: false, error: "Unauthorized" });
+}
+
+app.post("/api/update", requireUpdateToken, async (_req, res) => {
   const updaterPath = path.join(__dirname, "updater.js");
   const child = spawn(process.execPath, [updaterPath], {
     cwd: __dirname,
