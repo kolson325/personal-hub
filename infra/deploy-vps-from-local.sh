@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Deploys the current repo to a VPS over SSH (no GitHub required).
+# Deploys to a VPS over SSH.
 #
-# Requirements (on your Mac):
-# - ssh + scp
-# - this repo checked out locally
+# Default mode uses GitHub (fastest redeploy): the VPS clones/pulls `origin` and then runs Docker Compose.
+# Fallback mode can ship a tarball snapshot (no GitHub), but redeploy buttons won't be able to `git pull`.
 #
 # Requirements (on VPS):
 # - Ubuntu/Debian recommended
@@ -19,6 +18,7 @@ set -euo pipefail
 #   SSH_KEY=secrets/ssh/personalhub_ed25519
 #   REMOTE_DIR=/opt/personal-dashboard
 #   EMAIL_FOR_TLS=you@example.com
+#   USE_GIT=1   (default) or 0 to upload a tarball snapshot
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -32,6 +32,7 @@ else
 fi
 REMOTE_DIR="${REMOTE_DIR:-/opt/personal-dashboard}"
 EMAIL_FOR_TLS="${EMAIL_FOR_TLS:-you@example.com}"
+USE_GIT="${USE_GIT:-1}"
 
 if [[ -z "$VPS_IP" ]]; then
   echo "ERROR: set VPS_IP (example: VPS_IP=1.2.3.4 bash infra/deploy-vps-from-local.sh)"
@@ -43,16 +44,25 @@ if [[ ! -f "$SSH_KEY" ]]; then
   exit 2
 fi
 
-ARCHIVE="/tmp/personal-dashboard-$(date +%s).tar.gz"
-git -C "$ROOT_DIR" archive --format=tar.gz --output="$ARCHIVE" HEAD
+ORIGIN_URL="$(git -C "$ROOT_DIR" remote get-url origin 2>/dev/null || true)"
+HTTPS_URL="$ORIGIN_URL"
+if [[ "$HTTPS_URL" == git@github.com:* ]]; then
+  HTTPS_URL="https://github.com/${HTTPS_URL#git@github.com:}"
+fi
+if [[ "$HTTPS_URL" == ssh://git@github.com/* ]]; then
+  HTTPS_URL="https://github.com/${HTTPS_URL#ssh://git@github.com/}"
+fi
 
-echo "Uploading archive to ${SSH_USER}@${VPS_IP}..."
-scp -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$ARCHIVE" "${SSH_USER}@${VPS_IP}:/tmp/personal-dashboard.tar.gz"
+if [[ "$USE_GIT" != "1" ]]; then
+  ARCHIVE="/tmp/personal-dashboard-$(date +%s).tar.gz"
+  git -C "$ROOT_DIR" archive --format=tar.gz --output="$ARCHIVE" HEAD
+  echo "Uploading archive to ${SSH_USER}@${VPS_IP}..."
+  scp -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$ARCHIVE" "${SSH_USER}@${VPS_IP}:/tmp/personal-dashboard.tar.gz"
+fi
 
 echo "Bootstrapping VPS + deploying..."
 ssh -i "$SSH_KEY" "${SSH_USER}@${VPS_IP}" bash -s <<EOF
 set -euo pipefail
-export REPO_URL="local"
 export APP_DIR="${REMOTE_DIR}"
 export EMAIL_FOR_TLS="${EMAIL_FOR_TLS}"
 
@@ -64,7 +74,16 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 mkdir -p "${REMOTE_DIR}/repo"
-tar -xzf /tmp/personal-dashboard.tar.gz -C "${REMOTE_DIR}/repo" --strip-components=0
+
+if [[ "${USE_GIT}" == "1" ]]; then
+  if [[ ! -d "${REMOTE_DIR}/repo/.git" ]]; then
+    git clone "${HTTPS_URL}" "${REMOTE_DIR}/repo"
+  else
+    git -C "${REMOTE_DIR}/repo" pull --ff-only
+  fi
+else
+  tar -xzf /tmp/personal-dashboard.tar.gz -C "${REMOTE_DIR}/repo" --strip-components=0
+fi
 
 cd "${REMOTE_DIR}/repo/infra"
 
