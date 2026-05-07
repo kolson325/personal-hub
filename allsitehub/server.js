@@ -185,6 +185,42 @@ function getUpdateMaxSeconds() {
   return Number.isFinite(raw) ? Math.max(10, Math.floor(raw)) : 180;
 }
 
+// Browser-friendly: visiting `/api/update` in a browser will show a page with a POST button.
+// Actual updates run via POST so random link previews/crawlers don't trigger work.
+app.get("/api/update", async (_req, res) => {
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Allsite Hub Update</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; margin: 0; padding: 24px; background: #0b0f17; color: #e7eaf0; }
+      .card { max-width: 720px; margin: 0 auto; background: #111827; border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 20px; }
+      h1 { font-size: 18px; margin: 0 0 8px; }
+      p { margin: 0 0 14px; color: rgba(231,234,240,.82); line-height: 1.4; }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+      button, a { display: inline-flex; align-items: center; justify-content: center; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: #2563eb; color: #fff; text-decoration: none; font-weight: 600; }
+      a { background: transparent; }
+      code { background: rgba(255,255,255,.06); padding: 2px 6px; border-radius: 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Run update</h1>
+      <p>This triggers the snapshot refresh (same as <code>POST /api/update</code>).</p>
+      <div class="row">
+        <form method="POST" action="/api/update">
+          <button type="submit">Start update</button>
+        </form>
+        <a href="/api/update/status">View status</a>
+        <a href="/">Open hub</a>
+      </div>
+    </div>
+  </body>
+</html>`);
+});
+
 app.post("/api/update", async (_req, res) => {
   if (updateProcess) {
     return res.status(409).json({ ok: false, error: "Update already running.", status: await readUpdateStatus() });
