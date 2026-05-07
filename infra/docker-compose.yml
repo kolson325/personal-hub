@@ -43,6 +43,13 @@ services:
       - dashboard
       - worker
 
+  allsitehub:
+    image: caddy:2
+    restart: unless-stopped
+    volumes:
+      - ./allsitehub-index.html:/usr/share/caddy/index.html:ro
+    command: ["caddy", "file-server", "--root", "/usr/share/caddy", "--listen", ":8080"]
+
 volumes:
   dashboard_data:
   caddy_data:

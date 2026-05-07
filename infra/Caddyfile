@@ -7,3 +7,7 @@
   reverse_proxy dashboard:3000
 }
 
+{$ALLSITE_HUB_HOST} {
+  encode gzip
+  reverse_proxy allsitehub:8080
+}
