@@ -8,6 +8,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Required so Next.js prerender that touches Prisma can initialize during image build.
+ENV DATABASE_URL="file:/data/app.db"
 RUN npx prisma generate
 RUN npm run build
 
