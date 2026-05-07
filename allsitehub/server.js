@@ -20,8 +20,11 @@ const deployLogPath = path.join(dataDir, "deploy.log");
 const deployStatusPath = path.join(dataDir, "deploy-status.json");
 const publicUrlPath = path.join(dataDir, "public-url.txt");
 const deployScriptPath = path.join(__dirname, "scripts", "deploy-dashboard.sh");
+const updateLogPath = path.join(dataDir, "update.log");
+const updateStatusPath = path.join(dataDir, "update-status.json");
 
 let deployProcess = null;
+let updateProcess = null;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
@@ -60,6 +63,20 @@ async function readDeployStatus() {
   return { ...status, running: Boolean(deployProcess), publicUrl, log: log.slice(-20000) };
 }
 
+async function readUpdateStatus() {
+  const rawStatus = await readTextIfExists(updateStatusPath);
+  let status = { state: "idle", message: "Ready to update", updatedAt: null, startedAt: null, finishedAt: null };
+  if (rawStatus) {
+    try {
+      status = JSON.parse(rawStatus);
+    } catch {
+      status = { state: "unknown", message: "Status file could not be parsed", updatedAt: null, startedAt: null, finishedAt: null };
+    }
+  }
+  const log = await readTextIfExists(updateLogPath);
+  return { ...status, running: Boolean(updateProcess), log: log.slice(-20000) };
+}
+
 app.get("/api/snapshot", async (_req, res) => {
   try {
     const raw = await fs.readFile(snapshotPath, "utf8");
@@ -69,6 +86,10 @@ app.get("/api/snapshot", async (_req, res) => {
       error: "No snapshot yet. Run `npm run update` after configuring credentials/endpoints."
     });
   }
+});
+
+app.get("/api/update/status", async (_req, res) => {
+  res.json(await readUpdateStatus());
 });
 
 app.get("/api/summary", async (_req, res) => {
@@ -152,7 +173,6 @@ app.post("/api/deploy", requireLocalRequest, async (_req, res) => {
   res.status(202).json({ ok: true, status: await readDeployStatus() });
 });
 
-let updateProcess = null;
 let lastUpdateStartedAt = null;
 
 function getUpdateMinIntervalSeconds() {
@@ -167,7 +187,7 @@ function getUpdateMaxSeconds() {
 
 app.post("/api/update", async (_req, res) => {
   if (updateProcess) {
-    return res.status(409).json({ ok: false, error: "Update already running." });
+    return res.status(409).json({ ok: false, error: "Update already running.", status: await readUpdateStatus() });
   }
 
   const minInterval = getUpdateMinIntervalSeconds();
@@ -184,20 +204,43 @@ app.post("/api/update", async (_req, res) => {
   lastUpdateStartedAt = new Date();
   const updaterPath = path.join(__dirname, "updater.js");
   const maxSeconds = getUpdateMaxSeconds();
-  // Use a hard timeout so a stalled upstream request can't wedge the server forever.
+  await fs.mkdir(dataDir, { recursive: true });
+  await fs.writeFile(
+    updateStatusPath,
+    JSON.stringify(
+      { state: "running", message: "Update running", startedAt: lastUpdateStartedAt.toISOString(), finishedAt: null, updatedAt: new Date().toISOString() },
+      null,
+      2
+    )
+  );
+  await fs.appendFile(updateLogPath, `\n\n=== Update started ${lastUpdateStartedAt.toISOString()} ===\n`);
+
+  // Use a hard timeout so a stalled upstream request can't wedge the container forever.
   updateProcess = spawn("timeout", ["-k", "5", String(maxSeconds), process.execPath, updaterPath], {
     cwd: __dirname,
     stdio: "pipe",
     env: { ...process.env }
   });
-  let out = "";
-  updateProcess.stdout.on("data", (d) => { out += d; });
-  updateProcess.stderr.on("data", (d) => { out += d; });
+
+  updateProcess.stdout.on("data", (d) => { fs.appendFile(updateLogPath, String(d)).catch(() => {}); });
+  updateProcess.stderr.on("data", (d) => { fs.appendFile(updateLogPath, String(d)).catch(() => {}); });
   updateProcess.once("exit", (code) => {
+    const finishedAt = new Date();
+    const state = code === 0 ? "succeeded" : "failed";
+    const message = code === 0 ? "Update finished" : `Update failed (exit ${code})`;
     updateProcess = null;
-    if (code === 0) res.json({ ok: true });
-    else res.status(500).json({ ok: false, log: out.slice(-2000) });
+    fs.writeFile(
+      updateStatusPath,
+      JSON.stringify(
+        { state, message, startedAt: lastUpdateStartedAt?.toISOString() ?? null, finishedAt: finishedAt.toISOString(), updatedAt: finishedAt.toISOString() },
+        null,
+        2
+      )
+    ).catch(() => {});
+    fs.appendFile(updateLogPath, `\n=== Update finished ${finishedAt.toISOString()} (exit ${code}) ===\n`).catch(() => {});
   });
+
+  res.status(202).json({ ok: true, status: await readUpdateStatus() });
 });
 
 function getLanIps() {
