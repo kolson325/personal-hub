@@ -117,9 +117,16 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function timeoutSignal(ms) {
+  const n = Number(ms);
+  const timeoutMs = Number.isFinite(n) ? Math.max(1000, Math.floor(n)) : 20000;
+  // Node 20+: AbortSignal.timeout is available.
+  return AbortSignal.timeout(timeoutMs);
+}
+
 async function headCheckImage(url) {
   try {
-    const res = await fetch(url, { method: "HEAD" });
+    const res = await fetch(url, { method: "HEAD", signal: timeoutSignal(process.env.SITEFOTOS_FETCH_TIMEOUT_MS ?? 20000) });
     const len = Number(res.headers.get("content-length") ?? "");
     const type = res.headers.get("content-type") ?? "";
     return {
@@ -224,7 +231,7 @@ async function apiFetch({ baseUrl, apiKey, bearer }, endpoint) {
 
       // Basic 429 handling: retry with backoff (sitefotos rate limits can be tight).
       for (let attempt = 0; attempt < 4; attempt++) {
-        res = await fetch(url, { method: endpoint.method, headers });
+        res = await fetch(url, { method: endpoint.method, headers, signal: timeoutSignal(process.env.SITEFOTOS_FETCH_TIMEOUT_MS ?? 20000) });
         contentType = res.headers.get("content-type") ?? "";
         text = await res.text();
         if (res.status !== 429) break;
