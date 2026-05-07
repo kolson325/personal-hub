@@ -241,12 +241,24 @@ export function CodexChat({
       text: "Give me a tight morning brief: 1) top 3 priorities, 2) what to ignore, 3) the next action for each, 4) a 90-minute focus block plan. Keep it decisive.",
     },
     {
+      label: "Money move",
+      text: "Money focus: based on my budget + tasks, pick 1 high-leverage action today to increase income or reduce spending. Give steps and a 30-minute first action.",
+    },
+    {
       label: "Allsite today",
       text: "Summarize today’s Allsite submissions: top issues, critical sites/vendors, and the 3 follow-ups that matter most. Draft the messages.",
     },
     {
       label: "DevOps learn",
       text: "Teach me one modern DevOps concept I can apply this week (simple explanation, why it matters, how to implement, and a 30-minute starter task). No fluff.",
+    },
+    {
+      label: "Health block",
+      text: "Health: give me a simple plan for today (workout, meals, water, sleep target). Make it realistic and tied to my schedule.",
+    },
+    {
+      label: "God focus",
+      text: "God focus: based on today’s devotional, give me a 5-minute reflection + a short prayer + one concrete obedience/action step for today.",
     },
     {
       label: "Midday reset",
