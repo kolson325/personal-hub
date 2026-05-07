@@ -73,16 +73,21 @@ app.get("/api/snapshot", async (_req, res) => {
 
 app.get("/api/summary", async (_req, res) => {
   try {
-    const raw = await fs.readFile(snapshotPath, "utf8");
-    const snapshot = JSON.parse(raw);
-    const summary = buildSummary(snapshot);
+    let snapshot = null;
+    try {
+      const raw = await fs.readFile(snapshotPath, "utf8");
+      snapshot = JSON.parse(raw);
+    } catch {
+      snapshot = null;
+    }
+    const summary = snapshot ? buildSummary(snapshot) : [];
     let dashboardConfig = {};
     try {
       dashboardConfig = JSON.parse(await fs.readFile(dashboardConfigPath, "utf8"));
     } catch {
       dashboardConfig = {};
     }
-    res.json({ summary, dashboardConfig });
+    res.json({ summary, dashboardConfig, hasSnapshot: Boolean(snapshot) });
   } catch (err) {
     res.status(500).json({ error: String(err?.message ?? err) });
   }
@@ -95,8 +100,16 @@ app.get("/api/site-details", async (req, res) => {
     const site = String(req.query.site ?? "").trim();
     if (!site) return res.json({ site: null, latest: null, photos: [], submissions: [] });
 
-    const raw = await fs.readFile(snapshotPath, "utf8");
-    const snapshot = JSON.parse(raw);
+    let snapshot = null;
+    try {
+      const raw = await fs.readFile(snapshotPath, "utf8");
+      snapshot = JSON.parse(raw);
+    } catch {
+      snapshot = null;
+    }
+    if (!snapshot) {
+      return res.status(404).json({ error: "No snapshot yet. Run update first.", site });
+    }
     const details = buildSiteDetails(snapshot, site);
     res.json(details);
   } catch (err) {
