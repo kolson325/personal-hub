@@ -82,9 +82,10 @@ async function getAllsiteSummary() {
 export default async function DashboardHome({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const edit = String(searchParams?.edit ?? "") === "1";
+  const params = await searchParams;
+  const edit = String(params.edit ?? "") === "1";
   const counts = await getCounts();
   const [recentJobs, openTodos, agentRuns, schedules, allsite, activeCodex, lastCodex, devotional, gridLayout] = await Promise.all([
     prisma.agentJob.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
