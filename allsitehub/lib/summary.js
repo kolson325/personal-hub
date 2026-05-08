@@ -396,6 +396,53 @@ function extractSubmissions(snapshot) {
   return asArray(snapshot);
 }
 
+function asStringArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((v) => asString(v).trim()).filter(Boolean);
+  if (typeof value === "string") return value.split(",").map((s) => s.trim()).filter(Boolean);
+  return [];
+}
+
+function normalizeSiteRow(raw) {
+  const id = Number(raw?.SITEID ?? raw?.site_id ?? raw?.id);
+  const name = asString(raw?.SITENAME ?? raw?.site_name ?? raw?.name ?? raw?.site).trim();
+  if (!name) return null;
+  const city = asString(raw?.CITYNAME ?? raw?.city ?? "").trim() || null;
+  const state = asString(raw?.STATENAME ?? raw?.state ?? "").trim() || null;
+  const zip = asString(raw?.ZIPCODE ?? raw?.zip ?? "").trim() || null;
+  const client = asString(raw?.site_contact_primary ?? raw?.CLIENTNAME ?? raw?.client ?? "").trim() || null;
+  const trades = asStringArray(raw?.TRADES ?? raw?.trades);
+  const forms = asStringArray(raw?.FORMNAMES ?? raw?.forms);
+  const contractors = asStringArray(raw?.CONTRACTORNAMES ?? raw?.contractors);
+  const status = asString(raw?.STATUS ?? raw?.status ?? "").trim() || null;
+  return {
+    id: Number.isFinite(id) ? id : null,
+    name,
+    city,
+    state,
+    zip,
+    client,
+    trades,
+    forms,
+    contractors,
+    status
+  };
+}
+
+function extractSiteCatalog(snapshot) {
+  const rows = asArray(snapshot?.data?.sitesTabulator ?? snapshot?.data?.sites);
+  if (!rows.length) return null;
+  const sites = rows.map((r) => normalizeSiteRow(r)).filter(Boolean);
+  const regularlyScheduledSiteNames = sites
+    .filter((s) => Array.isArray(s.forms) && s.forms.some((f) => /regularly\s+scheduled/i.test(String(f))))
+    .map((s) => s.name);
+  return {
+    totalSites: sites.length,
+    sites,
+    regularlyScheduledSiteNames: Array.from(new Set(regularlyScheduledSiteNames))
+  };
+}
+
 export function buildSummary(snapshot, nowEpochSec = Math.floor(Date.now() / 1000)) {
   const formCatalog = buildFormCatalog(snapshot);
   const rows = extractSubmissions(snapshot);
@@ -460,6 +507,7 @@ export function buildSummary(snapshot, nowEpochSec = Math.floor(Date.now() / 100
 
   return {
     generatedAt: nowEpochSec,
+    snapshotCreatedAt: asString(snapshot?.meta?.startedAt ?? "").trim() || null,
     formCatalog: [...formCatalog.byId.values()].map((f) => ({
       id: f.id,
       name: f.name,
@@ -467,7 +515,8 @@ export function buildSummary(snapshot, nowEpochSec = Math.floor(Date.now() / 100
       configuredEmails: asArray(f.configuredEmails)
     })),
     periods,
-    tracking
+    tracking,
+    siteCatalog: extractSiteCatalog(snapshot)
   };
 }
 

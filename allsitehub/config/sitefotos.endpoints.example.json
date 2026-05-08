@@ -22,6 +22,17 @@
       }
     },
 
+    "sitesTabulator": {
+      "path": "/node/sites/get-sites-tabulator",
+      "method": "POST",
+      "sendApiKey": false,
+      "accessCodeQueryParam": "accessCode",
+      "sendAccessCodeQuery": true,
+      "sendAccessCodeHeader": false,
+      "optional": true,
+      "body": {}
+    },
+
     "form2tableExample": {
       "path": "/node/reports/form2table",
       "method": "GET",

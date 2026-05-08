@@ -47,6 +47,7 @@ code {
   position: relative;
 }
 .react-grid-item {
+  position: absolute;
   transition: transform 120ms ease, width 120ms ease, height 120ms ease;
 }
 .react-grid-item.react-grid-placeholder {

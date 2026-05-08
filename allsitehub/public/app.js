@@ -520,7 +520,7 @@ function renderRegionButtons() {
   }
 }
 
-function renderWeeklyProgress(periods) {
+function renderWeeklyProgress(periods, summary) {
   const now = new Date();
   const cycleBase = getCycleBaseDate(now);
   const cycleNow = getCycleMonthWeek(Math.floor(now.getTime() / 1000), cycleBase);
@@ -534,7 +534,16 @@ function renderWeeklyProgress(periods) {
     return c.month === cycleNow.month && c.week === cycleNow.week;
   });
 
-  const targetSites = new Set(monthItems.map((it) => String(it?.site ?? "")).filter(Boolean));
+  let targetSites = new Set(monthItems.map((it) => String(it?.site ?? "")).filter(Boolean));
+  const catalogSites = summary?.siteCatalog?.regularlyScheduledSiteNames;
+  if (Array.isArray(catalogSites) && catalogSites.length) {
+    targetSites = new Set(
+      catalogSites
+        .map((s) => String(s ?? "").trim())
+        .filter(Boolean)
+        .filter((s) => matchesScope(s, activeRegion, activePghBrand))
+    );
+  }
 
   const termStart = new Date(cycleBase);
   termStart.setDate(cycleBase.getDate() + cycleNow.termIndex * 9);
@@ -621,6 +630,19 @@ function renderNeedsServiced(periods) {
     if (c.month === cycleNow.month && c.week === cycleNow.week) servicedThisWeekSites.add(site);
   }
 
+  // Prefer full site catalog when available so “needs serviced” includes sites with zero submissions in last 30 days.
+  const catalogSites = lastSummary?.siteCatalog?.regularlyScheduledSiteNames;
+  const usingCatalog = Array.isArray(catalogSites) && catalogSites.length;
+  if (usingCatalog) {
+    allRegularSites.clear();
+    for (const raw of catalogSites) {
+      const s = String(raw ?? "").trim();
+      if (!s) continue;
+      if (!matchesScope(s, activeRegion, activePghBrand)) continue;
+      allRegularSites.add(s);
+    }
+  }
+
   const rows = [...allRegularSites]
     .filter((site) => !servicedThisWeekSites.has(site))
     .map((site) => {
@@ -664,7 +686,8 @@ function renderNeedsServiced(periods) {
   return card(`Regularly Scheduled This Week (${cycleMonthLabel} Week ${cycleNow.week})`, [
     el("div", { class: "flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2" }, [
       el("div", { class: "text-xs text-slate-400" }, [
-        `${rows.length} site${rows.length !== 1 ? "s" : ""} still need regularly scheduled service in ${cycleMonthLabel}, week ${cycleNow.week}.`
+        `${rows.length} site${rows.length !== 1 ? "s" : ""} still need regularly scheduled service in ${cycleMonthLabel}, week ${cycleNow.week}.` +
+          (usingCatalog ? "" : " (site catalog missing; showing only sites with recent submissions)")
       ]),
       needsInput
     ]),
@@ -934,7 +957,7 @@ async function render() {
     subtitle.textContent = updatedAt ? `Snapshot updated: ${fmtDateTime(updatedAt)}` : "Snapshot loaded.";
 
     renderRegionButtons();
-    grid.append(renderWeeklyProgress(periods));
+    grid.append(renderWeeklyProgress(periods, lastSummary));
     if (["today", "yesterday", "week"].includes(activePeriod)) {
       grid.append(renderNeedsServiced(periods));
     }

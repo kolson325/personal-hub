@@ -37,6 +37,8 @@ const EndpointsSchema = z.object({
       ,
       // Optional query params; values may include {{placeholders}} resolved at runtime.
       query: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+      // Optional JSON body for POST requests; values may include {{placeholders}} resolved at runtime.
+      body: z.unknown().optional(),
       // Optional per-endpoint access code query param override (e.g. accessCode vs access_code)
       accessCodeQueryParam: z.string().optional(),
       // Optional per-endpoint access code header override
@@ -113,6 +115,18 @@ function renderTemplate(value, vars) {
   );
 }
 
+function renderTemplatesDeep(value, vars) {
+  if (typeof value === "string") return renderTemplate(value, vars);
+  if (value == null) return value;
+  if (Array.isArray(value)) return value.map((v) => renderTemplatesDeep(v, vars));
+  if (typeof value === "object") {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = renderTemplatesDeep(v, vars);
+    return out;
+  }
+  return value;
+}
+
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -186,6 +200,11 @@ async function apiFetch({ baseUrl, apiKey, bearer }, endpoint) {
     }
   }
 
+  const requestBody =
+    endpoint.method === "POST" && typeof endpoint.body !== "undefined"
+      ? JSON.stringify(renderTemplatesDeep(endpoint.body, vars))
+      : undefined;
+
   // Try a few common auth schemes. This helps when docs are unclear.
   const sendApiKey = endpoint.sendApiKey ?? true;
   const authVariants = sendApiKey
@@ -242,7 +261,13 @@ async function apiFetch({ baseUrl, apiKey, bearer }, endpoint) {
 
       // Basic 429 handling: retry with backoff (sitefotos rate limits can be tight).
       for (let attempt = 0; attempt < 4; attempt++) {
-        res = await fetch(url, { method: endpoint.method, headers, signal: timeoutSignal(process.env.SITEFOTOS_FETCH_TIMEOUT_MS ?? 20000) });
+        if (requestBody && !headers["content-type"]) headers["content-type"] = "application/json";
+        res = await fetch(url, {
+          method: endpoint.method,
+          headers,
+          body: requestBody,
+          signal: timeoutSignal(process.env.SITEFOTOS_FETCH_TIMEOUT_MS ?? 20000)
+        });
         contentType = res.headers.get("content-type") ?? "";
         text = await res.text();
         if (res.status !== 429) break;

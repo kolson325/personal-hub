@@ -79,30 +79,40 @@ export function GridLayoutEditor({
   const canEdit = edit && canInteract;
 
   useEffect(() => {
-    const hoverQuery = "(hover: hover) and (pointer: fine)";
-    const mq = window.matchMedia ? window.matchMedia(hoverQuery) : null;
+    const fineQuery = "(pointer: fine)";
+    const hoverQuery = "(hover: hover)";
+    const fineMq = window.matchMedia ? window.matchMedia(fineQuery) : null;
+    const hoverMq = window.matchMedia ? window.matchMedia(hoverQuery) : null;
 
     const update = () => {
       // Allow editing when a precise pointer exists (mouse/trackpad). Phones are typically coarse pointers.
-      const ok = mq ? mq.matches : true;
-      setCanInteract(ok);
+      // Safari/iPadOS can report maxTouchPoints > 0 even when a trackpad is connected, so we use multiple signals.
+      const fine = fineMq ? fineMq.matches : true;
+      const hover = hoverMq ? hoverMq.matches : true;
+      const touchPoints = typeof navigator !== "undefined" ? Number(navigator.maxTouchPoints ?? 0) : 0;
+      const ok = fine || hover || touchPoints === 0;
+      setCanInteract(Boolean(ok));
     };
 
     update();
 
     // Safari: older versions only support addListener/removeListener.
-    if (mq && "addEventListener" in mq) {
-      mq.addEventListener("change", update);
-      return () => mq.removeEventListener("change", update);
+    const mqs = [fineMq, hoverMq].filter(Boolean) as Array<MediaQueryList>;
+    const cleanup: Array<() => void> = [];
+    for (const mq of mqs) {
+      if (mq && "addEventListener" in mq) {
+        mq.addEventListener("change", update);
+        cleanup.push(() => mq.removeEventListener("change", update));
+      } else if (mq && "addListener" in mq) {
+        const legacyMq = mq as unknown as {
+          addListener: (cb: () => void) => void;
+          removeListener: (cb: () => void) => void;
+        };
+        legacyMq.addListener(update);
+        cleanup.push(() => legacyMq.removeListener(update));
+      }
     }
-    if (mq && "addListener" in mq) {
-      const legacyMq = mq as unknown as { addListener: (cb: () => void) => void; removeListener: (cb: () => void) => void };
-      legacyMq.addListener(update);
-      return () => {
-        legacyMq.removeListener(update);
-      };
-    }
-    return;
+    return () => cleanup.forEach((fn) => fn());
   }, []);
 
   const layouts: Layouts = useMemo(
