@@ -39,7 +39,22 @@ function siteMatchesRegion(siteName, regionKey) {
   if (!regionKey) return true;
   const region = REGIONS.find((r) => r.key === regionKey);
   if (!region) return true;
-  const lower = String(siteName ?? "").toLowerCase();
+  const lowerName = String(siteName ?? "").toLowerCase();
+  const meta = siteMetaByName.get(String(siteName ?? "").trim()) || null;
+  const lowerCity = String(meta?.city ?? "").toLowerCase();
+  const lowerState = String(meta?.state ?? "").toLowerCase();
+  const lower = `${lowerName} ${lowerCity} ${lowerState}`;
+
+  // If we have structured metadata, prefer it.
+  if (meta && regionKey === "pittsburgh") {
+    // Everything in PA is treated as Pittsburgh-area for this dashboard.
+    if (lowerState === "pa") return true;
+  }
+  if (meta && ["cincinnati", "dayton", "toledo"].includes(regionKey)) {
+    // Non-PA regions are Ohio-focused.
+    if (lowerState === "pa") return false;
+  }
+
   return region.keywords.some((kw) => lower.includes(kw));
 }
 
@@ -458,6 +473,7 @@ function renderPeriodButtons(activeKey) {
 }
 
 let lastSummary = null;
+let siteMetaByName = new Map();
 let activePeriod = localStorage.getItem("sf_period") || "today";
 let activeRegion = localStorage.getItem("sf_region") || null;
 let activeFormFilter = localStorage.getItem("sf_form") || null;
@@ -948,6 +964,14 @@ async function render() {
       subtitle.textContent = "Loading snapshot summary…";
       const payload = await apiGet("/api/summary");
       lastSummary = payload?.summary ?? null;
+    }
+
+    siteMetaByName = new Map();
+    const catalogSites = Array.isArray(lastSummary?.siteCatalog?.sites) ? lastSummary.siteCatalog.sites : [];
+    for (const s of catalogSites) {
+      const name = String(s?.name ?? "").trim();
+      if (!name) continue;
+      siteMetaByName.set(name, s);
     }
 
     const periods = resolvePeriods(lastSummary);

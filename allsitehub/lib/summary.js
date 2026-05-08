@@ -405,7 +405,7 @@ function asStringArray(value) {
 
 function normalizeSiteRow(raw) {
   const id = Number(raw?.SITEID ?? raw?.site_id ?? raw?.id);
-  const name = asString(raw?.SITENAME ?? raw?.site_name ?? raw?.name ?? raw?.site).trim();
+  const name = asString(raw?.SITENAME ?? raw?.nickname ?? raw?.site_name ?? raw?.name ?? raw?.site).trim();
   if (!name) return null;
   const city = asString(raw?.CITYNAME ?? raw?.city ?? "").trim() || null;
   const state = asString(raw?.STATENAME ?? raw?.state ?? "").trim() || null;
@@ -415,6 +415,8 @@ function normalizeSiteRow(raw) {
   const forms = asStringArray(raw?.FORMNAMES ?? raw?.forms);
   const contractors = asStringArray(raw?.CONTRACTORNAMES ?? raw?.contractors);
   const status = asString(raw?.STATUS ?? raw?.status ?? "").trim() || null;
+  const lat = raw?.lat != null ? Number(raw.lat) : null;
+  const lng = raw?.lng != null ? Number(raw.lng) : null;
   return {
     id: Number.isFinite(id) ? id : null,
     name,
@@ -425,16 +427,22 @@ function normalizeSiteRow(raw) {
     trades,
     forms,
     contractors,
-    status
+    status,
+    lat: Number.isFinite(lat) ? lat : null,
+    lng: Number.isFinite(lng) ? lng : null
   };
 }
 
 function extractSiteCatalog(snapshot) {
-  const rows = asArray(snapshot?.data?.sitesTabulator ?? snapshot?.data?.sites);
+  const rows = asArray(snapshot?.data?.sites ?? snapshot?.data?.sitesTabulator);
   if (!rows.length) return null;
   const sites = rows.map((r) => normalizeSiteRow(r)).filter(Boolean);
   const regularlyScheduledSiteNames = sites
-    .filter((s) => Array.isArray(s.forms) && s.forms.some((f) => /regularly\s+scheduled/i.test(String(f))))
+    // Prefer explicit form list when available; otherwise approximate using trade.
+    .filter((s) => {
+      if (Array.isArray(s.forms) && s.forms.length) return s.forms.some((f) => /regularly\s+scheduled/i.test(String(f)));
+      return Array.isArray(s.trades) && s.trades.some((t) => /landscap/i.test(String(t)));
+    })
     .map((s) => s.name);
   return {
     totalSites: sites.length,
