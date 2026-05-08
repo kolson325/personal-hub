@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useTransition } from "react";
+import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Responsive, WidthProvider, type Layout, type Layouts } from "react-grid-layout";
 import type { GridItem, PanelId } from "@/app/layout/actions";
 
@@ -69,12 +69,41 @@ export function GridLayoutEditor({
   const [isPending, startTransition] = useTransition();
   const [dirty, setDirty] = useState(false);
   const [breakpoint, setBreakpoint] = useState<Breakpoint>("lg");
+  const [canInteract, setCanInteract] = useState(false);
+  const didInitRef = useRef(false);
 
   const colsByBp = useMemo(
     () => ({ lg: 12, md: 12, sm: 6, xs: 1, xxs: 1 }),
     [],
   );
-  const canEdit = edit && (breakpoint === "lg" || breakpoint === "md" || breakpoint === "sm");
+  const canEdit = edit && canInteract;
+
+  useEffect(() => {
+    const hoverQuery = "(hover: hover) and (pointer: fine)";
+    const mq = window.matchMedia ? window.matchMedia(hoverQuery) : null;
+
+    const update = () => {
+      // Allow editing when a precise pointer exists (mouse/trackpad). Phones are typically coarse pointers.
+      const ok = mq ? mq.matches : true;
+      setCanInteract(ok);
+    };
+
+    update();
+
+    // Safari: older versions only support addListener/removeListener.
+    if (mq && "addEventListener" in mq) {
+      mq.addEventListener("change", update);
+      return () => mq.removeEventListener("change", update);
+    }
+    if (mq && "addListener" in mq) {
+      const legacyMq = mq as unknown as { addListener: (cb: () => void) => void; removeListener: (cb: () => void) => void };
+      legacyMq.addListener(update);
+      return () => {
+        legacyMq.removeListener(update);
+      };
+    }
+    return;
+  }, []);
 
   const layouts: Layouts = useMemo(
     () => ({
@@ -105,7 +134,9 @@ export function GridLayoutEditor({
       {edit ? (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="text-xs text-white/60">
-            {canEdit ? "Drag to move, pull corners to resize." : "Editing is disabled on small screens; use desktop."}{" "}
+            {canEdit
+              ? "Drag to move, pull corners to resize."
+              : "Editing is disabled on touch devices. Use a computer or a tablet with a trackpad/mouse."}{" "}
             <span className={dirty ? "text-amber-200" : "text-emerald-200"}>
               {dirty ? "Unsaved changes" : "Saved"}
             </span>
@@ -144,6 +175,10 @@ export function GridLayoutEditor({
         onBreakpointChange={(bp: string) => setBreakpoint((bp as Breakpoint) ?? "lg")}
         onLayoutChange={(current: Layout[], all: Layouts) => {
           if (!canEdit) return;
+          if (!didInitRef.current) {
+            didInitRef.current = true;
+            return;
+          }
           const normalized = normalize(all.lg ?? current, allowed);
           setLayout(normalized);
           setDirty(true);
