@@ -32,6 +32,7 @@ Runners:
   - Status: `GET /api/update/status`
 - Summary API:
   - `GET /api/summary` returns computed periods (today/yesterday/week/month) and a tracking calendar.
+  - Includes `siteCatalog` when the updater fetches the SiteFotos “sites tabulator” endpoint.
 
 Tracking calendar:
 - Month 1 starts **April 1**
@@ -64,6 +65,7 @@ Open: `http://localhost:3000`
 Key files:
 - Home layout: `dashboard/src/app/page.tsx`
 - Navigation component: `dashboard/src/app/_components/TopNav.tsx`
+- Drag/drop layout editor: `dashboard/src/app/_components/GridLayoutEditor.tsx` (desktop pointer devices; mobile is view-only)
 - “Ask Codex” widget: `dashboard/src/app/_components/AskCodex.tsx`
 - Codex chat page: `dashboard/src/app/codex/page.tsx`
 - Devotional API: `dashboard/src/app/api/devotional/today/route.ts`
@@ -97,6 +99,12 @@ Key files:
 - Updater: `allsitehub/updater.js`
 - Summary algorithm: `allsitehub/lib/summary.js`
 - Frontend UI: `allsitehub/public/app.js`
+
+Site list (“all sites”):
+- The UI’s “Needs serviced” + weekly progress are most accurate when the snapshot includes the full site catalog.
+- This is fetched by `allsitehub/config/sitefotos.endpoints.json` via:
+  - `POST /node/sites/get-sites-tabulator` (key: `sitesTabulator`)
+- If `sitesTabulator` fails or is disabled, the UI falls back to “sites seen in the last 30 days of submissions” (less complete).
 
 ## 3) Deploying (VPS / Linode)
 
