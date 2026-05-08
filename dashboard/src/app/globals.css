@@ -33,3 +33,33 @@ code {
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
 }
+
+/* react-grid-layout */
+.react-grid-layout {
+  position: relative;
+}
+.react-grid-item {
+  transition: transform 120ms ease, width 120ms ease, height 120ms ease;
+}
+.react-grid-item.react-grid-placeholder {
+  background: rgba(244, 63, 94, 0.14);
+  border: 1px dashed rgba(244, 63, 94, 0.4);
+  border-radius: 16px;
+}
+.react-resizable-handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  bottom: 6px;
+  right: 6px;
+  cursor: se-resize;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+}
+.panel-drag {
+  cursor: grab;
+}
+.react-grid-item.react-draggable-dragging .panel-drag {
+  cursor: grabbing;
+}

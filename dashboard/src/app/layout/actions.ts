@@ -11,6 +11,14 @@ export type PanelId =
   | "allsite"
   | "deploy";
 
+export type GridItem = {
+  i: PanelId;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
 const DEFAULT_ORDER: PanelId[] = [
   "codex",
   "devotional",
@@ -18,6 +26,15 @@ const DEFAULT_ORDER: PanelId[] = [
   "budget",
   "inbox",
   "deploy",
+];
+
+const DEFAULT_LAYOUT: GridItem[] = [
+  { i: "codex", x: 0, y: 0, w: 6, h: 4 },
+  { i: "devotional", x: 6, y: 0, w: 6, h: 4 },
+  { i: "allsite", x: 0, y: 4, w: 12, h: 7 },
+  { i: "budget", x: 0, y: 11, w: 6, h: 5 },
+  { i: "inbox", x: 6, y: 11, w: 6, h: 5 },
+  { i: "deploy", x: 0, y: 16, w: 12, h: 3 },
 ];
 
 export async function getPanelOrder(): Promise<PanelId[]> {
@@ -61,5 +78,46 @@ export async function movePanel(panelId: PanelId, dir: "up" | "down") {
 
 export async function resetPanelLayout() {
   await saveOrder(DEFAULT_ORDER);
+  revalidatePath("/");
+}
+
+export async function getGridLayout(): Promise<GridItem[]> {
+  const row = await prisma.panelLayout.findUnique({ where: { id: "default" } });
+  if (!row?.layoutJson) return DEFAULT_LAYOUT;
+  try {
+    const parsed = JSON.parse(row.layoutJson);
+    if (!Array.isArray(parsed)) return DEFAULT_LAYOUT;
+    const allowed = new Set<string>(DEFAULT_ORDER);
+    const safe: GridItem[] = [];
+    for (const x of parsed) {
+      if (!x || typeof x !== "object") continue;
+      const obj = x as Record<string, unknown>;
+      const i = String(obj.i ?? "");
+      if (!allowed.has(i)) continue;
+      const item: GridItem = {
+        i: i as PanelId,
+        x: Number(obj.x ?? 0) || 0,
+        y: Number(obj.y ?? 0) || 0,
+        w: Math.max(2, Math.floor(Number(obj.w ?? 6) || 6)),
+        h: Math.max(2, Math.floor(Number(obj.h ?? 4) || 4)),
+      };
+      safe.push(item);
+    }
+    const byId = new Map(safe.map((it) => [it.i, it]));
+    for (const it of DEFAULT_LAYOUT) if (!byId.has(it.i)) safe.push(it);
+    return safe;
+  } catch {
+    return DEFAULT_LAYOUT;
+  }
+}
+
+export async function saveGridLayout(layout: GridItem[]) {
+  const allowed = new Set<string>(DEFAULT_ORDER);
+  const safe = layout.filter((it) => allowed.has(it.i));
+  await prisma.panelLayout.upsert({
+    where: { id: "default" },
+    update: { layoutJson: JSON.stringify(safe) },
+    create: { id: "default", orderJson: JSON.stringify(DEFAULT_ORDER), layoutJson: JSON.stringify(safe) },
+  });
   revalidatePath("/");
 }

@@ -6,7 +6,9 @@ import { runScheduleNow } from "@/app/automations/actions";
 import { AskCodex } from "@/app/_components/AskCodex";
 import { queueCodexTask } from "@/app/actions";
 import { getDevotionalToday } from "@/lib/devotional";
-import { getPanelOrder, movePanel, resetPanelLayout, type PanelId } from "@/app/layout/actions";
+import { getGridLayout, saveGridLayout, type PanelId } from "@/app/layout/actions";
+import { GridLayoutEditor } from "@/app/_components/GridLayoutEditor";
+import { PanelCard } from "@/app/_components/PanelCard";
 
 export const dynamic = "force-dynamic";
 
@@ -42,29 +44,6 @@ type AllsitePeriod = {
   critical?: unknown[];
   timeline?: Array<Record<string, unknown>>;
 };
-
-function PanelControls({ edit, id }: { edit: boolean; id: PanelId }) {
-  if (!edit) return null;
-  return (
-    <div className="flex shrink-0 items-center gap-2">
-      <form action={movePanel.bind(null, id, "up")}>
-        <button className="rounded-xl border border-white/10 bg-white/5 px-2 py-1 text-xs hover:bg-white/10" title="Move up">
-          ↑
-        </button>
-      </form>
-      <form action={movePanel.bind(null, id, "down")}>
-        <button className="rounded-xl border border-white/10 bg-white/5 px-2 py-1 text-xs hover:bg-white/10" title="Move down">
-          ↓
-        </button>
-      </form>
-      <form action={resetPanelLayout}>
-        <button className="rounded-xl border border-white/10 bg-white/5 px-2 py-1 text-xs hover:bg-white/10" title="Reset layout">
-          Reset
-        </button>
-      </form>
-    </div>
-  );
-}
 
 async function getAllsiteSummary() {
   const base = process.env.ALLSITE_CENTRAL_HUB_URL ?? "https://allsitefacilities-centralhub.loca.lt";
@@ -107,7 +86,7 @@ export default async function DashboardHome({
 }) {
   const edit = String(searchParams?.edit ?? "") === "1";
   const counts = await getCounts();
-  const [recentJobs, openTodos, agentRuns, schedules, allsite, activeCodex, lastCodex, devotional, panelOrder] = await Promise.all([
+  const [recentJobs, openTodos, agentRuns, schedules, allsite, activeCodex, lastCodex, devotional, gridLayout] = await Promise.all([
     prisma.agentJob.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
     prisma.todoItem.findMany({
       where: { status: "OPEN" },
@@ -133,9 +112,10 @@ export default async function DashboardHome({
       orderBy: { createdAt: "desc" },
     }),
     getDevotionalToday(new Date()),
-    getPanelOrder(),
+    getGridLayout(),
   ]);
   const scheduleByKey = new Map(schedules.map((s) => [s.key, s]));
+  const PANEL_IDS: PanelId[] = ["codex", "devotional", "allsite", "budget", "inbox", "deploy"];
 
   const monthStart = startOfMonth(new Date());
   const [monthBudget, gmailRun] = await Promise.all([
@@ -145,10 +125,6 @@ export default async function DashboardHome({
   const income = monthBudget.filter((e) => e.amountCents > 0).reduce((a, e) => a + e.amountCents, 0);
   const expenses = monthBudget.filter((e) => e.amountCents < 0).reduce((a, e) => a + e.amountCents, 0);
   const net = income + expenses;
-
-  const rightPanels: PanelId[] = panelOrder;
-  const rightIndex = new Map(rightPanels.map((p, i) => [p, i]));
-  const orderOf = (id: PanelId) => rightIndex.get(id) ?? 999;
 
   return (
     <main className="min-h-screen">
@@ -325,280 +301,290 @@ export default async function DashboardHome({
             </div>
           </div>
 
-          <div className="lg:col-span-5 flex flex-col gap-4">
-            <div style={{ order: orderOf("codex") }} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold">Codex</div>
-                  <div className="mt-1 text-sm text-white/70">Chat-style LOCAL runs (single in-flight).</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/codex">
-                    Open
-                  </Link>
-                  <PanelControls edit={edit} id="codex" />
-                </div>
-              </div>
-
-              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
-                Active:{" "}
-                <span className="text-white/80">
-                  {activeCodex
-                    ? `${activeCodex.status} • ${activeCodex.createdAt.toISOString().replace("T", " ").slice(0, 19)}`
-                    : "—"}
-                </span>
-              </div>
-
-              {activeCodex?.resultText ? (
-                <pre className="mt-3 max-h-40 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/80">
-                  {activeCodex.resultText}
-                </pre>
-              ) : lastCodex?.resultText ? (
-                <pre className="mt-3 max-h-40 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/80">
-                  {lastCodex.resultText}
-                </pre>
-              ) : null}
-
-              <div className="mt-3">
-                <AskCodex title="Ask Codex" action={queueCodexTask} />
-              </div>
-            </div>
-
-            <div
-              style={{ order: orderOf("devotional") }}
-              className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 p-5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
+          <div className="lg:col-span-5">
+            <GridLayoutEditor
+              edit={edit}
+              allowedIds={PANEL_IDS}
+              initialLayout={gridLayout}
+              onSave={saveGridLayout}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold">Daily devotional</div>
-                  <div className="mt-1 text-sm text-white/70">A short biblical teaching for the day.</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-xs text-white/50">{devotional.source === "thebibleapi" ? "source: web" : "source: offline"}</div>
-                  <PanelControls edit={edit} id="devotional" />
-                </div>
-              </div>
-              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-4">
-                <div className="text-xs font-semibold uppercase tracking-wide text-white/60">{devotional.reference}</div>
-                <div className="mt-2 text-sm text-white/90">{devotional.text}</div>
-                <div className="mt-3 text-xs text-white/60">Takeaway: {devotional.takeaway}</div>
-              </div>
-              <div className="mt-3">
-                <AskCodex
-                  title="Ask Codex (apply this)"
-                  context="devotional"
-                  placeholder='Try: “Help me apply this to my work today”, “Write a short prayer for this”, “Give me a 5-minute reflection.”'
-                  action={queueCodexTask}
-                />
-              </div>
-            </div>
-
-            <div style={{ order: orderOf("budget") }} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold">Budget (this month)</div>
-                  <div className="mt-1 text-sm text-white/70">Income, expenses, and net.</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Link className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90" href="/budget">
-                    Open
-                  </Link>
-                  <PanelControls edit={edit} id="budget" />
-                </div>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Income</div>
-                  <div className="mt-1 text-lg font-semibold">{dollars(income)}</div>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Expenses</div>
-                  <div className="mt-1 text-lg font-semibold">{dollars(expenses)}</div>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Net</div>
-                  <div className="mt-1 text-lg font-semibold">{dollars(net)}</div>
-                </div>
-              </div>
-              <div className="mt-4">
-                <AskCodex title="Ask Codex (budget)" context="budget" action={queueCodexTask} />
-              </div>
-            </div>
-
-            <div style={{ order: orderOf("inbox") }} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold">Inbox (Gmail)</div>
-                  <div className="mt-1 text-sm text-white/70">Triage and turn important items into tasks.</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/inbox">
-                    Open
-                  </Link>
-                  <PanelControls edit={edit} id="inbox" />
-                </div>
-              </div>
-              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
-                Last triage: {gmailRun ? gmailRun.startedAt.toISOString().replace("T", " ").slice(0, 19) : "—"}
-              </div>
-              <div className="mt-4">
-                <AskCodex title="Ask Codex (gmail)" context="gmail" action={queueCodexTask} />
-              </div>
-              <div className="mt-3 text-xs text-white/50">
-                Schedule it in Automations → “Gmail inbox triage” (runs when your laptop companion is connected).
-              </div>
-            </div>
-
-            <div style={{ order: orderOf("allsite") }} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold">Allsite hub (site photos)</div>
-                  <div className="mt-1 text-sm text-white/70">Live data + snapshot status.</div>
-                </div>
-                <div className="flex gap-2">
-                  <a
-                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
-                    href={process.env.ALLSITE_CENTRAL_HUB_URL ?? "https://allsitefacilities-centralhub.loca.lt"}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open
-                  </a>
-                  <Link className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90" href="/central-hub">
-                    Embed
-                  </Link>
-                  <PanelControls edit={edit} id="allsite" />
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
-                {allsite.ok ? (
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm text-white/80">
-                      Snapshot:{" "}
-                      <span className={allsite.hasSnapshot ? "text-emerald-300" : "text-amber-300"}>
-                        {allsite.hasSnapshot ? "available" : "missing"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {scheduleByKey.get("allsite_update") ? (
-                        <form action={runScheduleNow.bind(null, scheduleByKey.get("allsite_update")!.id)}>
-                          <button className="rounded-xl bg-fuchsia-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-fuchsia-400">
-                            Run now
-                          </button>
-                        </form>
-                      ) : (
-                        <Link className="text-xs text-white/70 hover:text-white" href="/automations">
-                          Schedule →
-                        </Link>
-                      )}
-                      <a
-                        className="text-xs text-white/70 hover:text-white"
-                        href={`${allsite.base.replace(/\/$/, "")}/api/update`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Update page →
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-sm text-white/70">Couldn’t load hub summary: {allsite.error}</div>
-                )}
-                {allsite.ok && allsite.updateStatus ? (
-                  <div className="mt-2 text-xs text-white/60">
-                    Update: {String(allsite.updateStatus.state ?? "—")} {allsite.updateStatus.running ? "(running)" : ""}
-                  </div>
-                ) : null}
-                {scheduleByKey.get("allsite_update") ? (
-                  <div className="mt-1 text-xs text-white/50">
-                    Automation:{" "}
-                    {scheduleByKey.get("allsite_update")!.enabled ? "on" : "off"} • next{" "}
-                    {scheduleByKey.get("allsite_update")!.nextRunAt
-                      ? scheduleByKey
-                          .get("allsite_update")!
-                          .nextRunAt!.toISOString()
-                          .replace("T", " ")
-                          .slice(0, 19)
-                      : "—"}
-                  </div>
-                ) : null}
-              </div>
-
-              {allsite.ok ? (
-                <div className="mt-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Today</div>
-                      <div className="mt-1 text-2xl font-semibold">{String(allsite.today?.total ?? 0)}</div>
-                      <div className="mt-1 text-xs text-white/60">
-                        issues: {allsite.today?.withIssues ? "yes" : "no"} • critical: {String(allsite.today?.critical?.length ?? 0)}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Yesterday</div>
-                      <div className="mt-1 text-2xl font-semibold">{String(allsite.yesterday?.total ?? 0)}</div>
-                      <div className="mt-1 text-xs text-white/60">
-                        issues: {allsite.yesterday?.withIssues ? "yes" : "no"} • critical: {String(allsite.yesterday?.critical?.length ?? 0)}
-                      </div>
-                    </div>
+              <div
+                key="codex"
+                className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
+              >
+                <PanelCard
+                  title="Codex"
+                  subtitle="Chat-style LOCAL runs (single in-flight)."
+                  right={
+                    <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/codex">
+                      Open
+                    </Link>
+                  }
+                >
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
+                    Active:{" "}
+                    <span className="text-white/80">
+                      {activeCodex
+                        ? `${activeCodex.status} • ${activeCodex.createdAt.toISOString().replace("T", " ").slice(0, 19)}`
+                        : "—"}
+                    </span>
                   </div>
 
-                  <div className="mt-4">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Today (latest)</div>
-                    <div className="mt-2 grid gap-2">
-                      {Array.isArray(allsite.today?.timeline) && allsite.today.timeline.length > 0 ? (
-                        allsite.today.timeline.slice(0, 6).map((t: Record<string, unknown>, idx: number) => (
-                          <div key={idx} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="truncate text-sm font-medium">{String(t.site ?? "Site")}</div>
-                              <div className="text-xs text-white/60">{Boolean(t.suspect) ? "⚠︎" : "OK"}</div>
-                            </div>
-                            <div className="mt-1 text-xs text-white/50">
-                              {String(t.vendor ?? "")} • {String(t.formName ?? "")}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-sm text-white/60">No submissions yet.</div>
-                      )}
-                    </div>
-                  </div>
+                  {activeCodex?.resultText ? (
+                    <pre className="mt-3 max-h-40 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/80">
+                      {activeCodex.resultText}
+                    </pre>
+                  ) : lastCodex?.resultText ? (
+                    <pre className="mt-3 max-h-40 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/80">
+                      {lastCodex.resultText}
+                    </pre>
+                  ) : null}
 
-                  <div className="mt-4">
+                  <div className="mt-3">
+                    <AskCodex title="Ask Codex" action={queueCodexTask} />
+                  </div>
+                </PanelCard>
+              </div>
+
+              <div
+                key="devotional"
+                className="h-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
+              >
+                <PanelCard
+                  title="Daily devotional"
+                  subtitle="A short biblical teaching for the day."
+                  right={
+                    <div className="text-xs text-white/50">
+                      {devotional.source === "thebibleapi" ? "source: web" : "source: offline"}
+                    </div>
+                  }
+                >
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-white/60">{devotional.reference}</div>
+                    <div className="mt-2 text-sm text-white/90">{devotional.text}</div>
+                    <div className="mt-3 text-xs text-white/60">Takeaway: {devotional.takeaway}</div>
+                  </div>
+                  <div className="mt-3">
                     <AskCodex
-                      title="Ask Codex (allsite)"
-                      context="allsite"
-                      placeholder='Examples: “Summarize issues from today’s submissions”, “List critical sites to follow up”, “Draft a message to a vendor about missing photos.”'
+                      title="Ask Codex (apply this)"
+                      context="devotional"
+                      placeholder='Try: “Help me apply this to my work today”, “Write a short prayer for this”, “Give me a 5-minute reflection.”'
                       action={queueCodexTask}
                     />
                   </div>
-                </div>
-              ) : null}
-            </div>
+                </PanelCard>
+              </div>
 
-            <div style={{ order: orderOf("deploy") }} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold">Deploy / restart</div>
-                  <div className="mt-1 text-sm text-white/70">One-click redeploy via the VPS worker.</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Link className="text-xs text-white/70 hover:text-white" href="/deploy">
-                    Open →
-                  </Link>
-                  <PanelControls edit={edit} id="deploy" />
-                </div>
+              <div
+                key="allsite"
+                className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
+              >
+                <PanelCard
+                  title="Allsite hub (site photos)"
+                  subtitle="Live data + snapshot status."
+                  right={
+                    <div className="flex gap-2">
+                      <a
+                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
+                        href={process.env.ALLSITE_CENTRAL_HUB_URL ?? "https://allsitefacilities-centralhub.loca.lt"}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open
+                      </a>
+                      <Link className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90" href="/central-hub">
+                        Embed
+                      </Link>
+                    </div>
+                  }
+                >
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                    {allsite.ok ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm text-white/80">
+                          Snapshot:{" "}
+                          <span className={allsite.hasSnapshot ? "text-emerald-300" : "text-amber-300"}>
+                            {allsite.hasSnapshot ? "available" : "missing"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {scheduleByKey.get("allsite_update") ? (
+                            <form action={runScheduleNow.bind(null, scheduleByKey.get("allsite_update")!.id)}>
+                              <button className="rounded-xl bg-fuchsia-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-fuchsia-400">
+                                Run now
+                              </button>
+                            </form>
+                          ) : (
+                            <Link className="text-xs text-white/70 hover:text-white" href="/automations">
+                              Schedule →
+                            </Link>
+                          )}
+                          <a
+                            className="text-xs text-white/70 hover:text-white"
+                            href={`${allsite.base.replace(/\/$/, "")}/api/update`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Update page →
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-white/70">Couldn’t load hub summary: {allsite.error}</div>
+                    )}
+                    {allsite.ok && allsite.updateStatus ? (
+                      <div className="mt-2 text-xs text-white/60">
+                        Update: {String(allsite.updateStatus.state ?? "—")} {allsite.updateStatus.running ? "(running)" : ""}
+                      </div>
+                    ) : null}
+                    {scheduleByKey.get("allsite_update") ? (
+                      <div className="mt-1 text-xs text-white/50">
+                        Automation: {scheduleByKey.get("allsite_update")!.enabled ? "on" : "off"} • next{" "}
+                        {scheduleByKey.get("allsite_update")!.nextRunAt
+                          ? scheduleByKey
+                              .get("allsite_update")!
+                              .nextRunAt!.toISOString()
+                              .replace("T", " ")
+                              .slice(0, 19)
+                          : "—"}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {allsite.ok ? (
+                    <div className="mt-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Today</div>
+                          <div className="mt-1 text-2xl font-semibold">{String(allsite.today?.total ?? 0)}</div>
+                          <div className="mt-1 text-xs text-white/60">
+                            issues: {allsite.today?.withIssues ? "yes" : "no"} • critical:{" "}
+                            {String(allsite.today?.critical?.length ?? 0)}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Yesterday</div>
+                          <div className="mt-1 text-2xl font-semibold">{String(allsite.yesterday?.total ?? 0)}</div>
+                          <div className="mt-1 text-xs text-white/60">
+                            issues: {allsite.yesterday?.withIssues ? "yes" : "no"} • critical:{" "}
+                            {String(allsite.yesterday?.critical?.length ?? 0)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Today (latest)</div>
+                        <div className="mt-2 grid gap-2">
+                          {Array.isArray(allsite.today?.timeline) && allsite.today.timeline.length > 0 ? (
+                            allsite.today.timeline.slice(0, 6).map((t: Record<string, unknown>, idx: number) => (
+                              <div key={idx} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="truncate text-sm font-medium">{String(t.site ?? "Site")}</div>
+                                  <div className="text-xs text-white/60">{Boolean(t.suspect) ? "⚠︎" : "OK"}</div>
+                                </div>
+                                <div className="mt-1 text-xs text-white/50">
+                                  {String(t.vendor ?? "")} • {String(t.formName ?? "")}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-sm text-white/60">No submissions yet.</div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <AskCodex
+                          title="Ask Codex (allsite)"
+                          context="allsite"
+                          placeholder='Examples: “Summarize issues from today’s submissions”, “List critical sites to follow up”, “Draft a message to a vendor about missing photos.”'
+                          action={queueCodexTask}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </PanelCard>
               </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <Link className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm hover:bg-white/10" href="/deploy">
-                  Queue redeploy
-                </Link>
-                <Link className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm hover:bg-white/10" href="/services">
-                  Services
-                </Link>
+
+              <div
+                key="budget"
+                className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
+              >
+                <PanelCard
+                  title="Budget (this month)"
+                  subtitle="Income, expenses, and net."
+                  right={
+                    <Link className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90" href="/budget">
+                      Open
+                    </Link>
+                  }
+                >
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Income</div>
+                      <div className="mt-1 text-lg font-semibold">{dollars(income)}</div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Expenses</div>
+                      <div className="mt-1 text-lg font-semibold">{dollars(expenses)}</div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Net</div>
+                      <div className="mt-1 text-lg font-semibold">{dollars(net)}</div>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <AskCodex title="Ask Codex (budget)" context="budget" action={queueCodexTask} />
+                  </div>
+                </PanelCard>
               </div>
-            </div>
+
+              <div
+                key="inbox"
+                className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
+              >
+                <PanelCard
+                  title="Inbox (Gmail)"
+                  subtitle="Triage and turn important items into tasks."
+                  right={
+                    <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/inbox">
+                      Open
+                    </Link>
+                  }
+                >
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
+                    Last triage: {gmailRun ? gmailRun.startedAt.toISOString().replace("T", " ").slice(0, 19) : "—"}
+                  </div>
+                  <div className="mt-4">
+                    <AskCodex title="Ask Codex (gmail)" context="gmail" action={queueCodexTask} />
+                  </div>
+                  <div className="mt-3 text-xs text-white/50">
+                    Schedule it in Automations → “Gmail inbox triage” (runs when your laptop companion is connected).
+                  </div>
+                </PanelCard>
+              </div>
+
+              <div
+                key="deploy"
+                className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
+              >
+                <PanelCard title="Deploy / restart" subtitle="One-click redeploy via the VPS worker.">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Link className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm hover:bg-white/10" href="/deploy">
+                      Queue redeploy
+                    </Link>
+                    <Link className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm hover:bg-white/10" href="/services">
+                      Services
+                    </Link>
+                  </div>
+                  <div className="mt-3">
+                    <Link className="text-xs text-white/70 hover:text-white" href="/deploy">
+                      Open deploy page →
+                    </Link>
+                  </div>
+                </PanelCard>
+              </div>
+            </GridLayoutEditor>
           </div>
         </div>
       </section>

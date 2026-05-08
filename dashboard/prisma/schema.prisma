@@ -37,6 +37,7 @@ model AgentHeartbeat {
 model PanelLayout {
   id        String   @id
   orderJson String
+  layoutJson String?
   updatedAt DateTime @updatedAt
 }
 
