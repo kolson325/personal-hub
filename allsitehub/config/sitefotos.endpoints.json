@@ -13,6 +13,16 @@
       "optional": true
     },
     "sites": { "path": "/v1/api/site", "method": "GET" },
+    "sitesTabulator": {
+      "path": "/node/sites/get-sites-tabulator",
+      "method": "POST",
+      "sendApiKey": false,
+      "accessCodeQueryParam": "accessCode",
+      "sendAccessCodeQuery": true,
+      "sendAccessCodeHeader": false,
+      "optional": true,
+      "body": {}
+    },
     "submittedFormsLast30Days": {
       "path": "/v1/api/form/submitted",
       "method": "GET",

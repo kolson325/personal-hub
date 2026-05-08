@@ -9,6 +9,9 @@ import { getDevotionalToday } from "@/lib/devotional";
 import { getGridLayout, saveGridLayout, type PanelId } from "@/app/layout/actions";
 import { GridLayoutEditor } from "@/app/_components/GridLayoutEditor";
 import { PanelCard } from "@/app/_components/PanelCard";
+import { RunAgent } from "@/app/_components/RunAgent";
+import { runBizDevAgent } from "@/app/agents/bizdev/actions";
+import { runDevOpsAgent } from "@/app/agents/devops/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +89,7 @@ export default async function DashboardHome({
 }) {
   const params = await searchParams;
   const edit = String(params.edit ?? "") === "1";
+  const PANEL_IDS: PanelId[] = ["today", "codex", "devotional", "allsite", "bizdev", "devops", "budget", "inbox", "jobs", "deploy"];
   const counts = await getCounts();
   const [recentJobs, openTodos, agentRuns, schedules, allsite, activeCodex, lastCodex, devotional, gridLayout] = await Promise.all([
     prisma.agentJob.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
@@ -116,8 +120,6 @@ export default async function DashboardHome({
     getGridLayout(),
   ]);
   const scheduleByKey = new Map(schedules.map((s) => [s.key, s]));
-  const PANEL_IDS: PanelId[] = ["codex", "devotional", "allsite", "budget", "inbox", "deploy"];
-
   const monthStart = startOfMonth(new Date());
   const [monthBudget, gmailRun] = await Promise.all([
     prisma.budgetEntry.findMany({ where: { occurredOn: { gte: monthStart } } }),
@@ -126,6 +128,14 @@ export default async function DashboardHome({
   const income = monthBudget.filter((e) => e.amountCents > 0).reduce((a, e) => a + e.amountCents, 0);
   const expenses = monthBudget.filter((e) => e.amountCents < 0).reduce((a, e) => a + e.amountCents, 0);
   const net = income + expenses;
+  const bizdevLast = agentRuns.find((r) => r.agentType === "bizdev") ?? null;
+  const devopsLast = agentRuns.find((r) => r.agentType === "devops") ?? null;
+  const bizdevPreview =
+    (bizdevLast?.outputMarkdown ?? "").trim().split(/\r?\n/).filter(Boolean).slice(0, 10).join("\n") ||
+    "No reports yet.";
+  const devopsPreview =
+    (devopsLast?.outputMarkdown ?? "").trim().split(/\r?\n/).filter(Boolean).slice(0, 10).join("\n") ||
+    "No reports yet.";
 
   return (
     <main className="min-h-screen">
@@ -181,22 +191,17 @@ export default async function DashboardHome({
       </header>
 
       <section className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">
-        <div className="grid gap-4 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 p-5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-white/90">Today</div>
-                  <div className="mt-1 text-sm text-white/70">
-                    {counts.openTodos} open tasks • {counts.queuedJobs} queued jobs
-                  </div>
-                </div>
-                <div className="hidden text-xs text-white/60 sm:block">
-                  Tip: keep it small, keep it moving.
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <GridLayoutEditor edit={edit} allowedIds={PANEL_IDS} initialLayout={gridLayout} onSave={saveGridLayout}>
+          <div
+            key="today"
+            className="h-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
+          >
+            <PanelCard
+              title="Today"
+              subtitle={`${counts.openTodos} open tasks • ${counts.queuedJobs} queued jobs`}
+              right={<div className="hidden text-xs text-white/60 sm:block">Tip: keep it small, keep it moving.</div>}
+            >
+              <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                   <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Quick add</div>
                   <form action={addTodo} className="mt-2 grid gap-2">
@@ -232,9 +237,7 @@ export default async function DashboardHome({
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="truncate text-sm font-medium">{t.title}</div>
-                              {t.notes ? (
-                                <div className="mt-1 line-clamp-2 text-sm text-white/70">{t.notes}</div>
-                              ) : null}
+                              {t.notes ? <div className="mt-1 line-clamp-2 text-sm text-white/70">{t.notes}</div> : null}
                               <div className="mt-2 text-xs text-white/50">{t.pinned ? "Pinned" : "—"}</div>
                             </div>
                             <div className="flex shrink-0 flex-col gap-2">
@@ -256,63 +259,156 @@ export default async function DashboardHome({
                   </ul>
                 </div>
               </div>
-            </div>
+            </PanelCard>
+          </div>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <AgentCard
-                title="BizDev (Allsite growth)"
-                href="/agents/bizdev"
-                context="bizdev"
-                last={agentRuns.find((r) => r.agentType === "bizdev") ?? null}
-                schedule={scheduleByKey.get("bizdev_digest") ?? null}
-                placeholder='Examples: “Find 10 target corporations in PA/OH + decision-maker contacts”, “Draft outreach email + call script”, “What should we pitch next week?”'
-              />
-              <AgentCard
-                title="DevOps Radar (career)"
-                href="/agents/devops"
-                context="devops"
-                last={agentRuns.find((r) => r.agentType === "devops") ?? null}
-                schedule={scheduleByKey.get("devops_radar") ?? null}
-                placeholder='Examples: “What should I learn this week?”, “Explain a new DevOps trend and how to apply it at my job”, “Give me a 30-minute study plan.”'
-              />
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold">Agent jobs</div>
-                  <div className="mt-1 text-sm text-white/70">Non-chat queue + runner status.</div>
+          <div
+            key="bizdev"
+            className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
+          >
+            <PanelCard
+              title="BizDev (Allsite growth)"
+              subtitle="Targets + outreach drafts."
+              right={
+                <div className="flex gap-2">
+                  <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/agents/bizdev">
+                    Open
+                  </Link>
+                  <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/automations">
+                    Schedule
+                  </Link>
                 </div>
-                <Link className="text-xs text-white/70 hover:text-white" href="/ai">
-                  View →
-                </Link>
+              }
+            >
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
+                Last report:{" "}
+                <span className="text-white/80">
+                  {bizdevLast ? `${bizdevLast.status} • ${bizdevLast.startedAt.toISOString().replace("T", " ").slice(0, 19)}` : "—"}
+                </span>
+                {scheduleByKey.get("bizdev_digest") ? (
+                  <div className="mt-1 text-xs text-white/50">
+                    Automation: {scheduleByKey.get("bizdev_digest")!.enabled ? "on" : "off"} • next{" "}
+                    {scheduleByKey.get("bizdev_digest")!.nextRunAt
+                      ? scheduleByKey.get("bizdev_digest")!.nextRunAt!.toISOString().replace("T", " ").slice(0, 19)
+                      : "—"}
+                  </div>
+                ) : (
+                  <div className="mt-1 text-xs text-white/50">Automation: not scheduled</div>
+                )}
               </div>
-              <ul className="mt-4 space-y-2 text-sm">
+
+              <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
+                {bizdevPreview}
+              </pre>
+
+              <div className="mt-3">
+                <RunAgent
+                  title="Run BizDev report"
+                  fieldName="notes"
+                  fieldPlaceholder='Optional notes (e.g., “focus on Western PA corporate campuses”, “prioritize woke brands”, “draft calls for facilities managers”)'
+                  actionLabel="Run"
+                  action={runBizDevAgent}
+                />
+              </div>
+
+              <div className="mt-3">
+                <AskCodex
+                  title="Ask Codex (bizdev)"
+                  context="bizdev"
+                  placeholder='Examples: “Find 10 multi-site targets in PA/OH + decision-maker contacts”, “Draft outreach email + call script”, “What should we pitch next week?”'
+                  action={queueCodexTask}
+                />
+              </div>
+            </PanelCard>
+          </div>
+
+          <div
+            key="devops"
+            className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
+          >
+            <PanelCard
+              title="DevOps Radar (career)"
+              subtitle="New tech + implementation steps."
+              right={
+                <div className="flex gap-2">
+                  <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/agents/devops">
+                    Open
+                  </Link>
+                  <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/automations">
+                    Schedule
+                  </Link>
+                </div>
+              }
+            >
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
+                Last report:{" "}
+                <span className="text-white/80">
+                  {devopsLast ? `${devopsLast.status} • ${devopsLast.startedAt.toISOString().replace("T", " ").slice(0, 19)}` : "—"}
+                </span>
+                {scheduleByKey.get("devops_radar") ? (
+                  <div className="mt-1 text-xs text-white/50">
+                    Automation: {scheduleByKey.get("devops_radar")!.enabled ? "on" : "off"} • next{" "}
+                    {scheduleByKey.get("devops_radar")!.nextRunAt
+                      ? scheduleByKey.get("devops_radar")!.nextRunAt!.toISOString().replace("T", " ").slice(0, 19)
+                      : "—"}
+                  </div>
+                ) : (
+                  <div className="mt-1 text-xs text-white/50">Automation: not scheduled</div>
+                )}
+              </div>
+
+              <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
+                {devopsPreview}
+              </pre>
+
+              <div className="mt-3">
+                <RunAgent
+                  title="Run DevOps report"
+                  fieldName="focus"
+                  fieldPlaceholder='Optional focus (e.g., “Backstage 2026 best practices”, “Octopus deploy patterns”, “OpenTelemetry rollout”)'
+                  actionLabel="Run"
+                  action={runDevOpsAgent}
+                />
+              </div>
+
+              <div className="mt-3">
+                <AskCodex
+                  title="Ask Codex (devops)"
+                  context="devops"
+                  placeholder='Examples: “What should I learn this week?”, “Explain a new DevOps trend and how to apply it at my job”, “Give me a 30-minute study plan.”'
+                  action={queueCodexTask}
+                />
+              </div>
+            </PanelCard>
+          </div>
+
+          <div
+            key="jobs"
+            className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
+          >
+            <PanelCard title="Agent jobs" subtitle="Non-chat queue + runner status." right={<Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/ai">Open</Link>}>
+              <ul className="space-y-2 text-sm">
                 {recentJobs.length === 0 ? (
                   <li className="text-white/60">No jobs yet.</li>
                 ) : (
                   recentJobs.map((j) => (
-                    <li key={j.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                    <li
+                      key={j.id}
+                      className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                    >
                       <span className="truncate pr-3">{j.kind}</span>
                       <span className="text-xs text-white/60">{j.status}</span>
                     </li>
                   ))
                 )}
               </ul>
-            </div>
+            </PanelCard>
           </div>
 
-          <div className="lg:col-span-5">
-            <GridLayoutEditor
-              edit={edit}
-              allowedIds={PANEL_IDS}
-              initialLayout={gridLayout}
-              onSave={saveGridLayout}
-            >
-              <div
-                key="codex"
-                className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
-              >
+          <div
+            key="codex"
+            className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
+          >
                 <PanelCard
                   title="Codex"
                   subtitle="Chat-style LOCAL runs (single in-flight)."
@@ -585,63 +681,8 @@ export default async function DashboardHome({
                   </div>
                 </PanelCard>
               </div>
-            </GridLayoutEditor>
-          </div>
-        </div>
+        </GridLayoutEditor>
       </section>
     </main>
-  );
-}
-
-function AgentCard({
-  title,
-  href,
-  context,
-  placeholder,
-  last,
-  schedule,
-}: {
-  title: string;
-  href: string;
-  context: string;
-  placeholder: string;
-  last: { status: string; startedAt: Date; outputMarkdown: string | null } | null;
-  schedule: { id: string; enabled: boolean; nextRunAt: Date | null } | null;
-}) {
-  const preview =
-    (last?.outputMarkdown ?? "").trim().split(/\r?\n/).filter(Boolean).slice(0, 6).join("\n") || "No runs yet.";
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold">{title}</div>
-          <div className="mt-1 text-xs text-white/60">{last ? `${last.status} • ${last.startedAt.toISOString()}` : "—"}</div>
-          {schedule ? (
-            <div className="mt-1 text-xs text-white/50">
-              Automation: {schedule.enabled ? "on" : "off"} • next{" "}
-              {schedule.nextRunAt ? schedule.nextRunAt.toISOString().replace("T", " ").slice(0, 19) : "—"}
-            </div>
-          ) : (
-            <div className="mt-1 text-xs text-white/50">Automation: not scheduled</div>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-col gap-2">
-          <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/10" href={href}>
-            Open
-          </Link>
-          <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/10" href="/automations">
-            Schedule
-          </Link>
-        </div>
-      </div>
-
-      <pre className="mt-4 max-h-40 overflow-auto rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/80">
-        {preview}
-      </pre>
-
-      <div className="mt-4">
-        <AskCodex title="Ask Codex" context={context} placeholder={placeholder} action={queueCodexTask} />
-      </div>
-    </div>
   );
 }

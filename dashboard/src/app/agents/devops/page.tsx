@@ -3,6 +3,7 @@ import { runDevOpsAgent } from "./actions";
 import { TopNav } from "@/app/_components/TopNav";
 import { AskCodex } from "@/app/_components/AskCodex";
 import { queueCodexTask } from "@/app/actions";
+import { RunAgent } from "@/app/_components/RunAgent";
 
 export const dynamic = "force-dynamic";
 
@@ -23,16 +24,15 @@ export default async function DevOpsAgentPage() {
       <section className="mx-auto max-w-4xl px-6 py-6">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
           <h2 className="text-sm font-semibold">Run</h2>
-          <form action={runDevOpsAgent} className="mt-3 grid gap-2">
-            <textarea
-              name="focus"
-              placeholder="What do you want updated? (e.g., Backstage 2026 best practices, Jenkins → GitHub Actions migration, OpenTelemetry rollout, etc.)"
-              className="min-h-24 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-fuchsia-500/50"
+          <div className="mt-3">
+            <RunAgent
+              title="Focus (optional)"
+              fieldName="focus"
+              fieldPlaceholder="What do you want updated? (e.g., Backstage 2026 best practices, Jenkins → GitHub Actions migration, OpenTelemetry rollout, etc.)"
+              actionLabel="Run DevOps report"
+              action={runDevOpsAgent}
             />
-            <button className="w-fit rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90">
-              Run agent
-            </button>
-          </form>
+          </div>
         </div>
 
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5">

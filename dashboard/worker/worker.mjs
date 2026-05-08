@@ -136,6 +136,12 @@ async function tickSchedules() {
   });
   if (due.length === 0) return;
 
+  const forceLocalKeys = new Set(["bizdev_digest", "devops_radar"]);
+  const agentTypeByKey = new Map([
+    ["bizdev_digest", "bizdev"],
+    ["devops_radar", "devops"],
+  ]);
+
   for (const s of due) {
     const existing = await prisma.agentJob.findFirst({
       where: { kind: "automation", scheduleId: s.id, status: { in: ["QUEUED", "CLAIMED"] } },
@@ -148,16 +154,37 @@ async function tickSchedules() {
       const cfg = s.configJson ? JSON.parse(s.configJson) : null;
       if (cfg?.requiresLocalCompanion) runner = "LOCAL";
     } catch {}
+
+    if (forceLocalKeys.has(s.key)) runner = "LOCAL";
+
+    const agentType = agentTypeByKey.get(s.key) ?? null;
+    const jobPayload = { key: s.key, configJson: s.configJson, agentType };
+
+    const job = await prisma.agentJob.create({
+      data: {
+        kind: "automation",
+        scheduleId: s.id,
+        payloadJson: JSON.stringify(jobPayload),
+        status: "QUEUED",
+        runner,
+      },
+    });
+
+    if (agentType) {
+      // Create a corresponding AgentRun so panels can show “running” immediately.
+      await prisma.agentRun
+        .create({
+          data: {
+            agentType,
+            status: "running",
+            sourceJobId: job.id,
+            inputJson: JSON.stringify({ scheduleKey: s.key, scheduleId: s.id }),
+          },
+        })
+        .catch(() => {});
+    }
+
     await prisma.$transaction([
-      prisma.agentJob.create({
-        data: {
-          kind: "automation",
-          scheduleId: s.id,
-          payloadJson: JSON.stringify({ key: s.key, configJson: s.configJson }),
-          status: "QUEUED",
-          runner,
-        },
-      }),
       prisma.automationSchedule.update({ where: { id: s.id }, data: { nextRunAt } }),
     ]);
   }

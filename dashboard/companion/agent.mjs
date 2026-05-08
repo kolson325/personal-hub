@@ -94,22 +94,27 @@ async function handleJob(job) {
       return;
     }
 
-    if (job.kind === "codex") {
-      const text = String(payload.text ?? "").trim();
-      const context = String(payload.context ?? "").trim();
-      const panelDataJson = String(payload.panelDataJson ?? "").trim();
-      const ok = await requireApproval(`Codex task requested${context ? ` (${context})` : ""}:\n${text}\nProceed?`);
+    async function runCodexForJob({ text, context, panelDataJson, sandboxOverride }) {
+      const requestText = String(text ?? "").trim();
+      const ctx = String(context ?? "").trim();
+      const panelJson = String(panelDataJson ?? "").trim();
+      if (!requestText) {
+        await report(job.id, "FAILED", undefined, "Missing Codex request text.");
+        return;
+      }
+
+      const ok = await requireApproval(`Codex task requested${ctx ? ` (${ctx})` : ""}:\n${requestText}\nProceed?`);
       if (!ok) {
         await report(job.id, "FAILED", undefined, "User declined Codex task.");
         return;
       }
 
       const workdir =
-        context === "combine" && COMBINE_REPO_PATH.trim()
+        ctx === "combine" && COMBINE_REPO_PATH.trim()
           ? COMBINE_REPO_PATH
           : process.env.CODEX_CWD?.trim() || process.cwd();
 
-      await report(job.id, "CLAIMED", `Starting Codex…\nworkdir: ${workdir}\ncontext: ${context || "—"}\n\n`, undefined);
+      await report(job.id, "CLAIMED", `Starting Codex…\nworkdir: ${workdir}\ncontext: ${ctx || "—"}\n\n`, undefined);
 
       const preamble =
         `You are Kolson’s personal dashboard assistant.\n` +
@@ -119,8 +124,8 @@ async function handleJob(job) {
 
       const fullPrompt =
         preamble +
-        (panelDataJson ? `PANEL_DATA_JSON:\n${panelDataJson}\n\n` : "") +
-        `USER_REQUEST:\n${text}\n`;
+        (panelJson ? `PANEL_DATA_JSON:\n${panelJson}\n\n` : "") +
+        `USER_REQUEST:\n${requestText}\n`;
 
       const codexArgs = [
         "exec",
@@ -130,7 +135,7 @@ async function handleJob(job) {
         "never",
         "--skip-git-repo-check",
         "-s",
-        process.env.CODEX_SANDBOX?.trim() || "workspace-write",
+        sandboxOverride || process.env.CODEX_SANDBOX?.trim() || "workspace-write",
         "-C",
         workdir,
         fullPrompt,
@@ -174,7 +179,6 @@ async function handleJob(job) {
           }
         }
 
-        // Non-JSON noise: keep it minimal so the UI stays readable.
         if (!sawJson && /WARN|ERROR|Reading additional input from stdin/i.test(trimmed)) return;
         void progress(job.id, trimmed);
         lastProgressAt = Date.now();
@@ -210,6 +214,15 @@ async function handleJob(job) {
       } else {
         await report(job.id, "FAILED", agentText.trim() || undefined, `Codex exited with code ${exitCode}`);
       }
+    }
+
+    if (job.kind === "codex") {
+      await runCodexForJob({
+        text: payload.text,
+        context: payload.context,
+        panelDataJson: payload.panelDataJson,
+        sandboxOverride: null,
+      });
       return;
     }
 
@@ -264,6 +277,29 @@ async function handleJob(job) {
       const ok = await requireApproval(`Run automation on laptop?\n${key || "(missing key)"}\nProceed?`);
       if (!ok) {
         await report(job.id, "FAILED", undefined, "User declined automation.");
+        return;
+      }
+
+      if (key === "bizdev_digest") {
+        const notes = String(payload.configJson ?? "").trim();
+        const text =
+          `Generate my BizDev report for today.\n` +
+          `Focus: winning more snow removal + landscaping contracts for Allsite.\n` +
+          `Use our proof points: KeyBank + GetGo satisfaction, certified woman-owned business.\n` +
+          `Output a crisp report with sections: Targets, Contacts/roles to pursue, Outreach drafts (email + call), Next 3 actions today.\n` +
+          (notes ? `\nSCHEDULE_CONFIG_JSON:\n${notes}\n` : "");
+        await runCodexForJob({ text, context: "bizdev", panelDataJson: "", sandboxOverride: "read-only" });
+        return;
+      }
+
+      if (key === "devops_radar") {
+        const notes = String(payload.configJson ?? "").trim();
+        const text =
+          `Generate my DevOps Radar report for today.\n` +
+          `Keep it decisive and practical for my stack: Octopus, Jenkins, Backstage, Atlassian, Teams, JBoss, Grafana, Kibana.\n` +
+          `Output sections: What’s new, Why it matters, How to implement (steps), 30-minute starter task.\n` +
+          (notes ? `\nSCHEDULE_CONFIG_JSON:\n${notes}\n` : "");
+        await runCodexForJob({ text, context: "devops", panelDataJson: "", sandboxOverride: "read-only" });
         return;
       }
 

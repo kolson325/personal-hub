@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 
 export type PanelId =
+  | "today"
+  | "bizdev"
+  | "devops"
+  | "jobs"
   | "codex"
   | "devotional"
   | "budget"
@@ -20,6 +24,10 @@ export type GridItem = {
 };
 
 const DEFAULT_ORDER: PanelId[] = [
+  "today",
+  "bizdev",
+  "devops",
+  "jobs",
   "codex",
   "devotional",
   "allsite",
@@ -29,12 +37,20 @@ const DEFAULT_ORDER: PanelId[] = [
 ];
 
 const DEFAULT_LAYOUT: GridItem[] = [
-  { i: "codex", x: 0, y: 0, w: 6, h: 4 },
-  { i: "devotional", x: 6, y: 0, w: 6, h: 4 },
-  { i: "allsite", x: 0, y: 4, w: 12, h: 7 },
-  { i: "budget", x: 0, y: 11, w: 6, h: 5 },
-  { i: "inbox", x: 6, y: 11, w: 6, h: 5 },
-  { i: "deploy", x: 0, y: 16, w: 12, h: 3 },
+  { i: "today", x: 0, y: 0, w: 6, h: 7 },
+  { i: "codex", x: 6, y: 0, w: 6, h: 5 },
+  { i: "devotional", x: 6, y: 5, w: 6, h: 2 },
+
+  { i: "allsite", x: 0, y: 7, w: 12, h: 7 },
+
+  { i: "bizdev", x: 0, y: 14, w: 6, h: 5 },
+  { i: "devops", x: 6, y: 14, w: 6, h: 5 },
+
+  { i: "budget", x: 0, y: 19, w: 6, h: 5 },
+  { i: "inbox", x: 6, y: 19, w: 6, h: 5 },
+
+  { i: "jobs", x: 0, y: 24, w: 6, h: 4 },
+  { i: "deploy", x: 6, y: 24, w: 6, h: 4 },
 ];
 
 export async function getPanelOrder(): Promise<PanelId[]> {

@@ -3,31 +3,49 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 
-export async function runDevOpsAgent(formData: FormData) {
+export type DevOpsRunState =
+  | { ok: true; jobId: string }
+  | { ok: false; error: string };
+
+export async function runDevOpsAgent(_prev: DevOpsRunState, formData: FormData): Promise<DevOpsRunState> {
   const focus = String(formData.get("focus") ?? "").trim();
-  const run = await prisma.agentRun.create({
-    data: { agentType: "devops", status: "running", inputJson: JSON.stringify({ focus }) },
+  const active = await prisma.agentJob.findFirst({
+    where: { kind: "codex", runner: "LOCAL", status: { in: ["QUEUED", "CLAIMED"] } },
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (active) {
+    return { ok: false, error: "Another Codex run is already in progress — please wait until it finishes." };
+  }
+
+  const text =
+    `Generate my DevOps Radar report.\n` +
+    `Stack: Octopus, Jenkins, Backstage, Atlassian, Teams, JBoss, Grafana, Kibana.\n` +
+    `Output: What’s new, why it matters, how to implement (steps), a 30-minute starter task.\n` +
+    (focus ? `\nFOCUS:\n${focus}\n` : "");
+
+  const job = await prisma.agentJob.create({
+    data: {
+      kind: "codex",
+      runner: "LOCAL",
+      status: "QUEUED",
+      payloadJson: JSON.stringify({ text, context: "devops", agentType: "devops", focus }),
+    },
   });
 
-  await prisma.agentRun.update({
-    where: { id: run.id },
+  await prisma.agentRun.create({
     data: {
-      status: "succeeded",
-      finishedAt: new Date(),
-      outputMarkdown:
-        `## DevOps Tech Radar (MVP placeholder)\n\n` +
-        `Focus: ${focus || "—"}\n\n` +
-        `Suggested “next tech” buckets to monitor:\n` +
-        `- Platform engineering: Backstage plugins, golden paths, scorecards.\n` +
-        `- CI/CD: ephemeral environments, progressive delivery, OPA policy-as-code.\n` +
-        `- Observability: OpenTelemetry maturity, eBPF-based tooling, SLO tooling.\n` +
-        `- Supply chain: SBOMs, SLSA, provenance signing, secret scanning.\n\n` +
-        `Next steps to make this real:\n` +
-        `- Add RSS/source list + summarizer.\n` +
-        `- Store “what changed” diffs and a weekly digest.\n`,
+      agentType: "devops",
+      status: "running",
+      sourceJobId: job.id,
+      inputJson: JSON.stringify({ focus }),
     },
   });
 
   revalidatePath("/agents/devops");
-}
+  revalidatePath("/");
+  revalidatePath("/codex");
+  revalidatePath("/ai");
 
+  return { ok: true, jobId: job.id };
+}

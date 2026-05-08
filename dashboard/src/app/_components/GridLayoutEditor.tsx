@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import React, { useMemo, useRef, useState, useTransition } from "react";
 import { Responsive, WidthProvider, type Layout, type Layouts } from "react-grid-layout";
 import type { GridItem, PanelId } from "@/app/layout/actions";
 
@@ -69,51 +69,13 @@ export function GridLayoutEditor({
   const [isPending, startTransition] = useTransition();
   const [dirty, setDirty] = useState(false);
   const [breakpoint, setBreakpoint] = useState<Breakpoint>("lg");
-  const [canInteract, setCanInteract] = useState(false);
   const didInitRef = useRef(false);
 
   const colsByBp = useMemo(
     () => ({ lg: 12, md: 12, sm: 6, xs: 1, xxs: 1 }),
     [],
   );
-  const canEdit = edit && canInteract;
-
-  useEffect(() => {
-    const fineQuery = "(pointer: fine)";
-    const hoverQuery = "(hover: hover)";
-    const fineMq = window.matchMedia ? window.matchMedia(fineQuery) : null;
-    const hoverMq = window.matchMedia ? window.matchMedia(hoverQuery) : null;
-
-    const update = () => {
-      // Allow editing when a precise pointer exists (mouse/trackpad). Phones are typically coarse pointers.
-      // Safari/iPadOS can report maxTouchPoints > 0 even when a trackpad is connected, so we use multiple signals.
-      const fine = fineMq ? fineMq.matches : true;
-      const hover = hoverMq ? hoverMq.matches : true;
-      const touchPoints = typeof navigator !== "undefined" ? Number(navigator.maxTouchPoints ?? 0) : 0;
-      const ok = fine || hover || touchPoints === 0;
-      setCanInteract(Boolean(ok));
-    };
-
-    update();
-
-    // Safari: older versions only support addListener/removeListener.
-    const mqs = [fineMq, hoverMq].filter(Boolean) as Array<MediaQueryList>;
-    const cleanup: Array<() => void> = [];
-    for (const mq of mqs) {
-      if (mq && "addEventListener" in mq) {
-        mq.addEventListener("change", update);
-        cleanup.push(() => mq.removeEventListener("change", update));
-      } else if (mq && "addListener" in mq) {
-        const legacyMq = mq as unknown as {
-          addListener: (cb: () => void) => void;
-          removeListener: (cb: () => void) => void;
-        };
-        legacyMq.addListener(update);
-        cleanup.push(() => legacyMq.removeListener(update));
-      }
-    }
-    return () => cleanup.forEach((fn) => fn());
-  }, []);
+  const canEdit = edit;
 
   const layouts: Layouts = useMemo(
     () => ({
@@ -144,9 +106,7 @@ export function GridLayoutEditor({
       {edit ? (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="text-xs text-white/60">
-            {canEdit
-              ? "Drag to move, pull corners to resize."
-              : "Editing is disabled on touch devices. Use a computer or a tablet with a trackpad/mouse."}{" "}
+            Drag to move, pull corners to resize.{" "}
             <span className={dirty ? "text-amber-200" : "text-emerald-200"}>
               {dirty ? "Unsaved changes" : "Saved"}
             </span>

@@ -23,6 +23,36 @@ export async function POST(request: Request) {
 
   const { id, status, resultText, errorText, append } = parsed.data;
 
+  const tryUpdateAgentRun = async (job: { id: string; kind: string; payloadJson: string }, finalStatus?: "SUCCEEDED" | "FAILED", nextResult?: string | null, nextError?: string | null) => {
+    if (job.kind !== "codex" && job.kind !== "automation") return;
+    let agentType: string | null = null;
+    let notes: string | null = null;
+    try {
+      const payload = JSON.parse(job.payloadJson ?? "{}") as Record<string, unknown>;
+      agentType = typeof payload.agentType === "string" ? payload.agentType : null;
+      notes = typeof payload.notes === "string" ? payload.notes : null;
+    } catch {
+      agentType = null;
+    }
+    if (!agentType) return;
+
+    const run = await prisma.agentRun.findUnique({ where: { sourceJobId: job.id } }).catch(() => null);
+    if (!run) return;
+
+    const patch: Record<string, unknown> = {};
+    if (finalStatus) {
+      patch.status = finalStatus === "SUCCEEDED" ? "succeeded" : "failed";
+      patch.finishedAt = new Date();
+      if (typeof nextResult === "string") patch.outputMarkdown = nextResult;
+      if (typeof nextError === "string" && nextError) patch.error = nextError;
+    } else {
+      // live-ish updates for running jobs (optional)
+      if (typeof nextResult === "string") patch.outputMarkdown = nextResult;
+      if (typeof nextError === "string" && nextError) patch.error = nextError;
+    }
+    await prisma.agentRun.update({ where: { id: run.id }, data: patch });
+  };
+
   if (status === "CLAIMED") {
     const existing = await prisma.agentJob.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
@@ -43,6 +73,7 @@ export async function POST(request: Request) {
       },
     });
 
+    await tryUpdateAgentRun(updated, undefined, nextResult, updated.errorText ?? null).catch(() => {});
     return NextResponse.json({ ok: true, job: updated });
   }
 
@@ -66,5 +97,6 @@ export async function POST(request: Request) {
     },
   });
 
+  await tryUpdateAgentRun(updated, status, nextResult, updated.errorText ?? null).catch(() => {});
   return NextResponse.json({ ok: true, job: updated });
 }
