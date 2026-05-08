@@ -3,7 +3,7 @@ services:
     build:
       context: ../dashboard
     restart: unless-stopped
-    command: ["sh","-c","mkdir -p /data && touch /data/app.db && npx prisma db push && npm run start"]
+    command: ["sh","-c","mkdir -p /data && touch /data/app.db && npx prisma db push --accept-data-loss && npm run start"]
     environment:
       TZ: ${TZ:-America/New_York}
       NODE_ENV: production
@@ -18,7 +18,7 @@ services:
     build:
       context: ../dashboard
     restart: unless-stopped
-    command: ["sh","-c","mkdir -p /data && touch /data/app.db && npx prisma db push && node worker/worker.mjs"]
+    command: ["sh","-c","mkdir -p /data && touch /data/app.db && npx prisma db push --accept-data-loss && node worker/worker.mjs"]
     environment:
       TZ: ${TZ:-America/New_York}
       NODE_ENV: production
