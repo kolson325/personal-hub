@@ -25,6 +25,21 @@ enum JobRunner {
   LOCAL
 }
 
+model AgentHeartbeat {
+  id         String    @id @default(cuid())
+  agentId    String
+  runner     JobRunner @default(LOCAL)
+  lastSeenAt DateTime  @default(now())
+
+  @@unique([agentId, runner])
+}
+
+model PanelLayout {
+  id        String   @id
+  orderJson String
+  updatedAt DateTime @updatedAt
+}
+
 enum ScheduleType {
   INTERVAL
   DAILY

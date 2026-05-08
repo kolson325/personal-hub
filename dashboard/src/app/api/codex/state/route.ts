@@ -11,7 +11,7 @@ function safeJsonParse<T>(text: string | null): T | null {
 }
 
 export async function GET() {
-  const [active, recent] = await Promise.all([
+  const [active, recent, hb] = await Promise.all([
     prisma.agentJob.findFirst({
       where: { kind: "codex", runner: "LOCAL", status: { in: ["QUEUED", "CLAIMED"] } },
       orderBy: { createdAt: "asc" },
@@ -20,6 +20,10 @@ export async function GET() {
       where: { kind: "codex", runner: "LOCAL" },
       orderBy: { createdAt: "desc" },
       take: 30,
+    }),
+    prisma.agentHeartbeat.findFirst({
+      where: { runner: "LOCAL" },
+      orderBy: { lastSeenAt: "desc" },
     }),
   ]);
 
@@ -57,6 +61,6 @@ export async function GET() {
         }
       : null,
     recent: mappedRecent,
+    companion: hb ? { agentId: hb.agentId, lastSeenAt: hb.lastSeenAt } : null,
   });
 }
-

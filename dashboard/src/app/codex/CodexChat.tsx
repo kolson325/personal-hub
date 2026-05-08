@@ -20,6 +20,7 @@ type CodexState = {
   ok: true;
   active: CodexJob | null;
   recent: CodexJob[];
+  companion: { agentId: string; lastSeenAt: string } | null;
 };
 
 function formatTs(ts: string) {
@@ -50,6 +51,7 @@ export function CodexChat({
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [text, setText] = useState("");
+  const [customMode, setCustomMode] = useState(false);
   const [remote, setRemote] = useState<CodexState | null>(null);
   const [networkError, setNetworkError] = useState<string | null>(null);
   const [liveActive, setLiveActive] = useState<CodexJob | null>(null);
@@ -57,6 +59,7 @@ export function CodexChat({
   const liveJobIdRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const justQueuedJobId = state.ok ? state.jobId : null;
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   async function refresh() {
     try {
@@ -74,9 +77,11 @@ export function CodexChat({
   useEffect(() => {
     const start = setTimeout(() => void refresh(), 0);
     const t = setInterval(() => void refresh(), 1500);
+    const clock = setInterval(() => setNowMs(Date.now()), 1000);
     return () => {
       clearTimeout(start);
       clearInterval(t);
+      clearInterval(clock);
     };
   }, []);
 
@@ -229,6 +234,19 @@ export function CodexChat({
     return out;
   }, [remote]);
 
+  const companionStatus = useMemo(() => {
+    const hb = remote?.companion ?? null;
+    if (!hb) return { ok: false, label: "not connected", detail: "Start your laptop companion: `cd dashboard && npm run companion`" };
+    const ageMs = nowMs - new Date(hb.lastSeenAt).getTime();
+    const ok = Number.isFinite(ageMs) && ageMs < 15_000;
+    const secs = Math.max(0, Math.floor(ageMs / 1000));
+    return {
+      ok,
+      label: ok ? "connected" : "stale",
+      detail: ok ? `${hb.agentId} • seen ${secs}s ago` : `${hb.agentId} • last seen ${secs}s ago`,
+    };
+  }, [remote?.companion, nowMs]);
+
   const remoteActive = remote?.active ?? null;
   const active =
     remoteActive && liveActive && liveActive.id === remoteActive.id ? liveActive : remoteActive;
@@ -294,11 +312,12 @@ export function CodexChat({
               </div>
               <div className="text-xs text-white/60">
                 Companion:{" "}
-                <span className={active.status === "CLAIMED" ? "text-emerald-300" : "text-white/70"}>
-                  {active.status === "CLAIMED" ? "connected" : "waiting"}
+                <span className={companionStatus.ok ? "text-emerald-300" : "text-amber-200"}>
+                  {companionStatus.label}
                 </span>
               </div>
             </div>
+            <div className="mt-2 text-xs text-white/60">{companionStatus.detail}</div>
             <div className="mt-3 text-xs text-white/60">
               {active.payload?.context ? `context: ${active.payload.context}` : "context: —"}
             </div>
@@ -306,19 +325,39 @@ export function CodexChat({
               {active.resultText
                 ? active.resultText
                 : active.status === "QUEUED"
-                  ? "Queued… (waiting for your laptop companion to claim it)"
+                  ? companionStatus.ok
+                    ? "Queued… (waiting for your laptop companion to claim it)"
+                    : "Queued… (your laptop companion is not connected yet)"
                   : "Thinking…"}
             </div>
           </div>
         ) : (
           <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/70">
-            No active run.
+            <div className="flex items-center justify-between gap-3">
+              <div>No active run.</div>
+              <div className="text-xs text-white/60">
+                Companion:{" "}
+                <span className={companionStatus.ok ? "text-emerald-300" : "text-amber-200"}>
+                  {companionStatus.label}
+                </span>
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-white/60">{companionStatus.detail}</div>
           </div>
         )}
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-        <div className="text-sm font-semibold">New request</div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-sm font-semibold">Run something</div>
+          <button
+            type="button"
+            onClick={() => setCustomMode((v) => !v)}
+            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/10 hover:text-white"
+          >
+            {customMode ? "Hide custom" : "Custom prompt"}
+          </button>
+        </div>
         <div className="mt-3">
           <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Quick prompts</div>
           <div className="mt-2">
@@ -328,50 +367,63 @@ export function CodexChat({
                 setText(t);
                 inputRef.current?.focus();
               }}
+              onRun={(t) => {
+                const fd = new FormData();
+                fd.set("text", t);
+                formAction(fd);
+                inputRef.current?.focus();
+              }}
             />
           </div>
         </div>
-        <form
-          action={(fd) => {
-            const t = String(fd.get("text") ?? "").trim();
-            if (!t) return;
-            setText("");
-            formAction(fd);
-            inputRef.current?.focus();
-            setTimeout(() => void refresh(), 0);
-          }}
-          className="mt-3 grid gap-2"
-        >
-          <textarea
-            ref={inputRef}
-            name="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder='Try: “Summarize today’s Allsite issues”, “Create a new budgeting category”, “Review THE-COMBINE UI for polish ideas.”'
-            className="min-h-28 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:ring-2 focus:ring-fuchsia-500/50"
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              disabled={pending}
-              className="w-fit rounded-xl bg-fuchsia-500 px-3 py-2 text-sm font-semibold text-black hover:bg-fuchsia-400 disabled:opacity-60"
-            >
-              {pending ? "Sending…" : "Send"}
-            </button>
-            <span className="text-xs text-white/60">
-              Uses your laptop companion. If it’s not running, requests stay queued.
-            </span>
+        {customMode ? (
+          <form
+            action={(fd) => {
+              const t = String(fd.get("text") ?? "").trim();
+              if (!t) return;
+              setText("");
+              formAction(fd);
+              inputRef.current?.focus();
+              setTimeout(() => void refresh(), 0);
+            }}
+            className="mt-3 grid gap-2"
+          >
+            <textarea
+              ref={inputRef}
+              name="text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder='Try: “Summarize today’s Allsite issues”, “Create a new budgeting category”, “Review THE-COMBINE UI for polish ideas.”'
+              className="min-h-28 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:ring-2 focus:ring-fuchsia-500/50"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                disabled={pending}
+                className="w-fit rounded-xl bg-fuchsia-500 px-3 py-2 text-sm font-semibold text-black hover:bg-fuchsia-400 disabled:opacity-60"
+              >
+                {pending ? "Sending…" : "Run"}
+              </button>
+              <span className="text-xs text-white/60">
+                Uses your laptop companion. If it’s not running, requests stay queued.
+              </span>
+            </div>
+            {lockedError ? (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+                {lockedError}
+              </div>
+            ) : null}
+            {!state.ok && state.error && !lockedError ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">
+                {state.error}
+              </div>
+            ) : null}
+          </form>
+        ) : (
+          <div className="mt-3 text-xs text-white/60">
+            Click a prompt’s <span className="text-fuchsia-200">Run</span> button to start immediately, or open{" "}
+            <span className="text-white/80">Custom prompt</span> for your own text.
           </div>
-          {lockedError ? (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
-              {lockedError}
-            </div>
-          ) : null}
-          {!state.ok && state.error && !lockedError ? (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">
-              {state.error}
-            </div>
-          ) : null}
-        </form>
+        )}
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-5">

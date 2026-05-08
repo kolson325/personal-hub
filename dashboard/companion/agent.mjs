@@ -47,6 +47,16 @@ async function pollOnce() {
   return data.job;
 }
 
+async function heartbeat() {
+  const res = await fetch(`${DASHBOARD_URL}/api/agent/heartbeat`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-agent-token": AGENT_TOKEN },
+    body: JSON.stringify({ agentId: AGENT_ID, runner: "LOCAL" }),
+  }).catch(() => null);
+  if (!res?.ok) return;
+  await res.json().catch(() => null);
+}
+
 async function report(id, status, resultText, errorText, append) {
   const res = await fetch(`${DASHBOARD_URL}/api/agent/report`, {
     method: "POST",
@@ -283,6 +293,7 @@ console.log(`Server: ${DASHBOARD_URL}`);
 // Poll loop
 while (true) {
   try {
+    await heartbeat();
     const job = await pollOnce();
     if (job) {
       console.log(`Claimed job ${job.id} (${job.kind})`);
