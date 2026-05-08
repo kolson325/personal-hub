@@ -137,6 +137,19 @@ export default async function DashboardHome({
     (devopsLast?.outputMarkdown ?? "").trim().split(/\r?\n/).filter(Boolean).slice(0, 10).join("\n") ||
     "No reports yet.";
 
+  let activeAgentType: string | null = null;
+  let activeContext: string | null = null;
+  try {
+    const payload = activeCodex?.payloadJson ? (JSON.parse(activeCodex.payloadJson) as Record<string, unknown>) : null;
+    activeAgentType = payload && typeof payload.agentType === "string" ? payload.agentType : null;
+    activeContext = payload && typeof payload.context === "string" ? payload.context : null;
+  } catch {
+    activeAgentType = null;
+    activeContext = null;
+  }
+  const bizdevLive = activeCodex && (activeAgentType === "bizdev" || activeContext === "bizdev") ? (activeCodex.resultText ?? "") : null;
+  const devopsLive = activeCodex && (activeAgentType === "devops" || activeContext === "devops") ? (activeCodex.resultText ?? "") : null;
+
   return (
     <main className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-white/10 bg-zinc-950/80 backdrop-blur">
@@ -297,8 +310,8 @@ export default async function DashboardHome({
                 )}
               </div>
 
-              <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
-                {bizdevPreview}
+              <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
+                {bizdevLive != null ? (bizdevLive.trim() ? bizdevLive : "Queued…") : bizdevPreview}
               </pre>
 
               <div className="mt-3">
@@ -357,8 +370,8 @@ export default async function DashboardHome({
                 )}
               </div>
 
-              <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
-                {devopsPreview}
+              <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
+                {devopsLive != null ? (devopsLive.trim() ? devopsLive : "Queued…") : devopsPreview}
               </pre>
 
               <div className="mt-3">
