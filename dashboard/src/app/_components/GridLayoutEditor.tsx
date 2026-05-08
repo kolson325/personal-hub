@@ -6,6 +6,8 @@ import type { GridItem, PanelId } from "@/app/layout/actions";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
+type Breakpoint = "lg" | "md" | "sm" | "xs" | "xxs";
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
@@ -27,6 +29,28 @@ function normalize(layout: Layout[], allowed: Set<string>): GridItem[] {
   return out;
 }
 
+function toMobileStack(layout: GridItem[]): Layout[] {
+  const sorted = layout.slice().sort((a, b) => (a.y - b.y) || (a.x - b.x) || a.i.localeCompare(b.i));
+  let y = 0;
+  return sorted.map((it) => {
+    const out: Layout = { i: it.i, x: 0, y, w: 1, h: it.h };
+    y += it.h;
+    return out;
+  });
+}
+
+function scaleLayout(layout: GridItem[], cols: number): Layout[] {
+  if (cols <= 1) return toMobileStack(layout);
+  const ratio = cols / 12;
+  const out: Layout[] = [];
+  for (const it of layout) {
+    const w = clamp(Math.round(it.w * ratio), 1, cols);
+    const x = clamp(Math.round(it.x * ratio), 0, Math.max(0, cols - w));
+    out.push({ i: it.i, x, y: it.y, w, h: it.h });
+  }
+  return out;
+}
+
 export function GridLayoutEditor({
   edit,
   allowedIds,
@@ -44,8 +68,24 @@ export function GridLayoutEditor({
   const [layout, setLayout] = useState<GridItem[]>(() => initialLayout);
   const [isPending, startTransition] = useTransition();
   const [dirty, setDirty] = useState(false);
+  const [breakpoint, setBreakpoint] = useState<Breakpoint>("lg");
 
-  const layouts: Layouts = useMemo(() => ({ lg: layout as unknown as Layout[] }), [layout]);
+  const colsByBp = useMemo(
+    () => ({ lg: 12, md: 12, sm: 6, xs: 1, xxs: 1 }),
+    [],
+  );
+  const canEdit = edit && (breakpoint === "lg" || breakpoint === "md" || breakpoint === "sm");
+
+  const layouts: Layouts = useMemo(
+    () => ({
+      lg: layout as unknown as Layout[],
+      md: scaleLayout(layout, colsByBp.md),
+      sm: scaleLayout(layout, colsByBp.sm),
+      xs: scaleLayout(layout, colsByBp.xs),
+      xxs: scaleLayout(layout, colsByBp.xxs),
+    }),
+    [layout, colsByBp],
+  );
 
   const childMap = useMemo(() => {
     const map = new Map<string, React.ReactNode>();
@@ -65,7 +105,7 @@ export function GridLayoutEditor({
       {edit ? (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="text-xs text-white/60">
-            Drag to move, pull corners to resize.{" "}
+            {canEdit ? "Drag to move, pull corners to resize." : "Editing is disabled on small screens; use desktop."}{" "}
             <span className={dirty ? "text-amber-200" : "text-emerald-200"}>
               {dirty ? "Unsaved changes" : "Saved"}
             </span>
@@ -92,17 +132,19 @@ export function GridLayoutEditor({
         className="layout"
         layouts={layouts}
         breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-        cols={{ lg: 12, md: 12, sm: 6, xs: 2, xxs: 2 }}
-        rowHeight={34}
-        margin={[12, 12]}
+        cols={colsByBp}
+        rowHeight={breakpoint === "xs" || breakpoint === "xxs" ? 40 : 34}
+        margin={breakpoint === "xs" || breakpoint === "xxs" ? [10, 10] : [12, 12]}
         containerPadding={[0, 0]}
-        isDraggable={edit}
-        isResizable={edit}
+        isDraggable={canEdit}
+        isResizable={canEdit}
         compactType="vertical"
         preventCollision={false}
         draggableHandle=".panel-drag"
-        onLayoutChange={(next: Layout[]) => {
-          const normalized = normalize(next, allowed);
+        onBreakpointChange={(bp: string) => setBreakpoint((bp as Breakpoint) ?? "lg")}
+        onLayoutChange={(current: Layout[], all: Layouts) => {
+          if (!canEdit) return;
+          const normalized = normalize(all.lg ?? current, allowed);
           setLayout(normalized);
           setDirty(true);
         }}

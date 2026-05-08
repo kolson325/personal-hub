@@ -130,7 +130,7 @@ export default async function DashboardHome({
   return (
     <main className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-white/10 bg-zinc-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6 sm:py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
               <h1 className="truncate text-xl font-semibold tracking-tight">Kolson’s Dashboard</h1>
@@ -142,7 +142,7 @@ export default async function DashboardHome({
               Morning brief, automations, agents, and deploy controls.
             </p>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="no-scrollbar flex max-w-[75vw] shrink-0 items-center gap-2 overflow-x-auto">
             <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/inbox">
               Inbox
             </Link>
@@ -180,7 +180,7 @@ export default async function DashboardHome({
         </div>
       </header>
 
-      <section className="mx-auto max-w-6xl px-6 py-6">
+      <section className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">
         <div className="grid gap-4 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 p-5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
