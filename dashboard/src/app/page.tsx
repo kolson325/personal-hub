@@ -187,12 +187,13 @@ export default async function DashboardHome({
             <Link className="rounded-xl bg-fuchsia-500 px-3 py-2 text-sm font-semibold text-black hover:bg-fuchsia-400" href="/codex">
               Codex
             </Link>
-            <Link
+            {/* Use a plain anchor here to force a full navigation so query params reliably apply in Safari. */}
+            <a
               className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
               href={edit ? "/" : "/?edit=1"}
             >
               {edit ? "Done editing" : "Edit layout"}
-            </Link>
+            </a>
             <form action={logout}>
               <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">
                 Sign out
