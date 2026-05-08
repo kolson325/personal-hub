@@ -101,10 +101,11 @@ Key files:
 - Frontend UI: `allsitehub/public/app.js`
 
 Site list (“all sites”):
-- The UI’s “Needs serviced” + weekly progress are most accurate when the snapshot includes the full site catalog.
-- This is fetched by `allsitehub/config/sitefotos.endpoints.json` via:
-  - `POST /node/sites/get-sites-tabulator` (key: `sitesTabulator`)
-- If `sitesTabulator` fails or is disabled, the UI falls back to “sites seen in the last 30 days of submissions” (less complete).
+- The UI’s “Needs serviced” + weekly progress are most accurate when the snapshot includes a complete site catalog.
+- Some SiteFotos “web UI” endpoints (like the tabulator sites list) may return 404 from server-side calls (they appear to require browser session cookies).
+- The reliable approach in this repo is to union site names from **multiple 30‑day windows** of submissions (SiteFotos rejects `submitted` queries > 30 days):
+  - `SITE_CATALOG_LOOKBACK_DAYS` (default `365`)
+  - `SITE_CATALOG_MAX_WINDOWS` (default `8`)
 
 ## 3) Deploying (VPS / Linode)
 

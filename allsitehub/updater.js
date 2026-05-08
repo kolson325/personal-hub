@@ -92,19 +92,32 @@ function daysAgoEpochSeconds(days, d = new Date()) {
   return Math.floor(date.getTime() / 1000);
 }
 
+function toEpochSecondsFromYmdLocal(ymd) {
+  const m = String(ymd ?? "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+  return Math.floor(new Date(y, mo - 1, d, 0, 0, 0, 0).getTime() / 1000);
+}
+
 function resolveTemplateVars() {
   const now = new Date();
   const today = isoToday();
   const weekStart = startOfWeekEpochSeconds(now);
   const weekEnd = endOfWeekEpochSeconds(now);
   const monthStart = startOfMonthEpochSeconds(now);
+  const trackingStartYmd = process.env.TRACKING_START_DATE ?? "2026-04-01";
+  const trackingStartEpoch = toEpochSecondsFromYmdLocal(trackingStartYmd) ?? daysAgoEpochSeconds(120, now);
   return {
     today,
     now_epoch: Math.floor(now.getTime() / 1000),
     week_start_epoch: weekStart,
     week_end_epoch: weekEnd,
     month_start_epoch: monthStart,
-    last_30d_start_epoch: daysAgoEpochSeconds(30, now)
+    last_30d_start_epoch: daysAgoEpochSeconds(30, now),
+    tracking_start_epoch: trackingStartEpoch
   };
 }
 
@@ -333,6 +346,47 @@ async function main() {
         continue;
       }
     }
+  }
+
+  // Extra: build a wider site catalog by fetching multiple 30-day windows of submissions.
+  // SiteFotos rejects submitted-form requests spanning > 30 days, so we chunk.
+  try {
+    const vars = resolveTemplateVars();
+    const lookbackDays = Math.max(30, Math.floor(numberEnv("SITE_CATALOG_LOOKBACK_DAYS", 365)));
+    const maxWindows = Math.max(1, Math.floor(numberEnv("SITE_CATALOG_MAX_WINDOWS", 8)));
+    const nowEpoch = Number(vars.now_epoch) || Math.floor(Date.now() / 1000);
+    const trackingStartEpoch = Number(vars.tracking_start_epoch) || nowEpoch - lookbackDays * 86400;
+    const minStart = Math.max(trackingStartEpoch, nowEpoch - lookbackDays * 86400);
+
+    const windows = [];
+    // Keep each window strictly under 30 days to satisfy upstream validation.
+    const windowSeconds = 30 * 86400 - 2;
+    let endEpoch = nowEpoch;
+    let i = 0;
+    while (endEpoch > minStart && i < maxWindows) {
+      const startEpoch = Math.max(minStart, endEpoch - windowSeconds);
+      windows.push({ startEpoch, endEpoch });
+      endEpoch = startEpoch - 1;
+      i += 1;
+    }
+
+    const submissionsByWindow = [];
+    for (const w of windows) {
+      const payload = await apiFetch(
+        { baseUrl: env.SITEFOTOS_API_BASE_URL, apiKey: env.SITEFOTOS_API_KEY, bearer: env.SITEFOTOS_API_BEARER },
+        {
+          path: "/v1/api/form/submitted",
+          method: "GET",
+          query: { start_date: w.startEpoch, end_date: w.endEpoch }
+        }
+      );
+      submissionsByWindow.push({ ...w, count: Array.isArray(payload) ? payload.length : 0, items: payload });
+      // small spacing to reduce rate-limit risk
+      await sleep(120);
+    }
+    results.submittedFormsForCatalog = submissionsByWindow;
+  } catch (err) {
+    errors.submittedFormsForCatalog = String(err?.message ?? err);
   }
 
   // Enrich: fetch detailed submissions for the last ~8 days so we can compute true

@@ -443,6 +443,29 @@ function extractSiteCatalog(snapshot) {
   };
 }
 
+function extractSiteCatalogFromSubmissions(snapshot) {
+  const windows = asArray(snapshot?.data?.submittedFormsForCatalog);
+  if (!windows.length) return null;
+  const names = new Set();
+  const regular = new Set();
+  for (const w of windows) {
+    const items = Array.isArray(w?.items) ? w.items : [];
+    for (const raw of items) {
+      const site = normalizeSite(raw?.form_site ?? raw?.Building ?? raw?.building ?? raw?.site ?? raw?.location);
+      if (!site) continue;
+      names.add(site);
+      const formName = extractFormName(raw);
+      if (/regularly\s+scheduled/i.test(formName)) regular.add(site);
+    }
+  }
+  const sites = Array.from(names).map((name) => ({ id: null, name, city: null, state: null, zip: null, client: null, trades: [], forms: [], contractors: [], status: null }));
+  return {
+    totalSites: sites.length,
+    sites,
+    regularlyScheduledSiteNames: Array.from(regular)
+  };
+}
+
 export function buildSummary(snapshot, nowEpochSec = Math.floor(Date.now() / 1000)) {
   const formCatalog = buildFormCatalog(snapshot);
   const rows = extractSubmissions(snapshot);
@@ -516,7 +539,7 @@ export function buildSummary(snapshot, nowEpochSec = Math.floor(Date.now() / 100
     })),
     periods,
     tracking,
-    siteCatalog: extractSiteCatalog(snapshot)
+    siteCatalog: extractSiteCatalog(snapshot) ?? extractSiteCatalogFromSubmissions(snapshot)
   };
 }
 
