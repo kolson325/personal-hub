@@ -56,17 +56,20 @@ export function GridLayoutEditor({
   allowedIds,
   initialLayout,
   onSave,
-  children,
+  panels,
+  onReset,
 }: {
   edit: boolean;
   allowedIds: PanelId[];
   initialLayout: GridItem[];
   onSave: (layout: GridItem[]) => Promise<void>;
-  children: React.ReactNode;
+  panels: Partial<Record<PanelId, React.ReactNode>>;
+  onReset?: () => Promise<void>;
 }) {
   const allowed = useMemo(() => new Set<string>(allowedIds), [allowedIds]);
   const [layout, setLayout] = useState<GridItem[]>(() => initialLayout);
   const [isPending, startTransition] = useTransition();
+  const [isResetPending, startResetTransition] = useTransition();
   const [dirty, setDirty] = useState(false);
   const [breakpoint, setBreakpoint] = useState<Breakpoint>("lg");
   const didInitRef = useRef(false);
@@ -88,19 +91,6 @@ export function GridLayoutEditor({
     [layout, colsByBp],
   );
 
-  const childMap = useMemo(() => {
-    const map = new Map<string, React.ReactNode>();
-    const arr = React.Children.toArray(children);
-    for (const el of arr) {
-      if (!React.isValidElement(el)) continue;
-      const rawKey = typeof el.key === "string" ? el.key : null;
-      if (!rawKey) continue;
-      const key = rawKey.replace(/^\.\$?/, "");
-      map.set(key, el);
-    }
-    return map;
-  }, [children]);
-
   return (
     <div>
       {edit ? (
@@ -112,6 +102,22 @@ export function GridLayoutEditor({
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {onReset ? (
+              <button
+                type="button"
+                disabled={isPending || isResetPending}
+                onClick={() =>
+                  startResetTransition(async () => {
+                    await onReset();
+                    // Force a full refresh so the server-side default layout is re-fetched on Safari reliably.
+                    window.location.href = "/?edit=1";
+                  })
+                }
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10 disabled:opacity-60"
+              >
+                {isResetPending ? "Resetting…" : "Reset layout"}
+              </button>
+            ) : null}
             <button
               type="button"
               disabled={!dirty || isPending}
@@ -160,7 +166,7 @@ export function GridLayoutEditor({
       >
         {allowedIds.map((id) => (
           <div key={id} className="h-full">
-            {childMap.get(id) ?? null}
+            {panels[id] ?? null}
           </div>
         ))}
       </ResponsiveGridLayout>

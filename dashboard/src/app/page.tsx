@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { prisma } from "@/lib/db";
 import { logout } from "@/app/login/actions";
 import { addTodo, markDone, togglePinned } from "@/app/todo/actions";
@@ -6,7 +7,7 @@ import { runScheduleNow } from "@/app/automations/actions";
 import { AskCodex } from "@/app/_components/AskCodex";
 import { queueCodexTask } from "@/app/actions";
 import { getDevotionalToday } from "@/lib/devotional";
-import { getGridLayout, saveGridLayout, type PanelId } from "@/app/layout/actions";
+import { getGridLayout, resetGridLayout, saveGridLayout, type PanelId } from "@/app/layout/actions";
 import { GridLayoutEditor } from "@/app/_components/GridLayoutEditor";
 import { PanelCard } from "@/app/_components/PanelCard";
 import { RunAgent } from "@/app/_components/RunAgent";
@@ -150,6 +151,473 @@ export default async function DashboardHome({
   const bizdevLive = activeCodex && (activeAgentType === "bizdev" || activeContext === "bizdev") ? (activeCodex.resultText ?? "") : null;
   const devopsLive = activeCodex && (activeAgentType === "devops" || activeContext === "devops") ? (activeCodex.resultText ?? "") : null;
 
+  const panels: Partial<Record<PanelId, ReactNode>> = {
+    today: (
+      <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
+        <PanelCard
+          title="Today"
+          subtitle={`${counts.openTodos} open tasks • ${counts.queuedJobs} queued jobs`}
+          right={<div className="hidden text-xs text-white/60 sm:block">Tip: keep it small, keep it moving.</div>}
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Quick add</div>
+              <form action={addTodo} className="mt-2 grid gap-2">
+                <input
+                  name="title"
+                  placeholder="Add a task…"
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:ring-2 focus:ring-fuchsia-500/50"
+                />
+                <input
+                  name="notes"
+                  placeholder="Notes (optional)"
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:ring-2 focus:ring-fuchsia-500/50"
+                />
+                <button className="w-fit rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90">
+                  Add
+                </button>
+              </form>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Open tasks</div>
+                <Link className="text-xs text-white/70 hover:text-white" href="/todo">
+                  Manage →
+                </Link>
+              </div>
+              <ul className="mt-2 space-y-2">
+                {openTodos.length === 0 ? (
+                  <li className="text-sm text-white/60">No open tasks.</li>
+                ) : (
+                  openTodos.map((t) => (
+                    <li key={t.id} className="rounded-xl border border-white/10 bg-black/30 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">{t.title}</div>
+                          {t.notes ? <div className="mt-1 line-clamp-2 text-sm text-white/70">{t.notes}</div> : null}
+                          <div className="mt-2 text-xs text-white/50">{t.pinned ? "Pinned" : "—"}</div>
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-2">
+                          <form action={togglePinned.bind(null, t.id)}>
+                            <button className="rounded-xl border border-white/10 bg-white/5 px-2 py-1 text-xs hover:bg-white/10">
+                              {t.pinned ? "Unpin" : "Pin"}
+                            </button>
+                          </form>
+                          <form action={markDone.bind(null, t.id)}>
+                            <button className="rounded-xl bg-fuchsia-500 px-2 py-1 text-xs font-semibold text-black hover:bg-fuchsia-400">
+                              Done
+                            </button>
+                          </form>
+                        </div>
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          </div>
+        </PanelCard>
+      </div>
+    ),
+    bizdev: (
+      <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
+        <PanelCard
+          title="BizDev (Allsite growth)"
+          subtitle="Targets + outreach drafts."
+          right={
+            <div className="flex gap-2">
+              <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/agents/bizdev">
+                Open
+              </Link>
+              <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/automations">
+                Schedule
+              </Link>
+            </div>
+          }
+        >
+          <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
+            Last report:{" "}
+            <span className="text-white/80">
+              {bizdevLast ? `${bizdevLast.status} • ${bizdevLast.startedAt.toISOString().replace("T", " ").slice(0, 19)}` : "—"}
+            </span>
+            {scheduleByKey.get("bizdev_digest") ? (
+              <div className="mt-1 text-xs text-white/50">
+                Automation: {scheduleByKey.get("bizdev_digest")!.enabled ? "on" : "off"} • next{" "}
+                {scheduleByKey.get("bizdev_digest")!.nextRunAt
+                  ? scheduleByKey.get("bizdev_digest")!.nextRunAt!.toISOString().replace("T", " ").slice(0, 19)
+                  : "—"}
+              </div>
+            ) : (
+              <div className="mt-1 text-xs text-white/50">Automation: not scheduled</div>
+            )}
+          </div>
+
+          <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
+            {bizdevLive != null ? (bizdevLive.trim() ? bizdevLive : "Queued…") : bizdevPreview}
+          </pre>
+
+          <div className="mt-3">
+            <RunAgent
+              title="Run BizDev report"
+              fieldName="notes"
+              fieldPlaceholder='Optional notes (e.g., “focus on Western PA corporate campuses”, “prioritize woke brands”, “draft calls for facilities managers”)'
+              actionLabel="Run"
+              action={runBizDevAgent}
+            />
+          </div>
+
+          <div className="mt-3">
+            <AskCodex
+              title="Ask Codex (bizdev)"
+              context="bizdev"
+              placeholder='Examples: “Find 10 multi-site targets in PA/OH + decision-maker contacts”, “Draft outreach email + call script”, “What should we pitch next week?”'
+              action={queueCodexTask}
+            />
+          </div>
+        </PanelCard>
+      </div>
+    ),
+    devops: (
+      <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
+        <PanelCard
+          title="DevOps Radar (career)"
+          subtitle="New tech + implementation steps."
+          right={
+            <div className="flex gap-2">
+              <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/agents/devops">
+                Open
+              </Link>
+              <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/automations">
+                Schedule
+              </Link>
+            </div>
+          }
+        >
+          <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
+            Last report:{" "}
+            <span className="text-white/80">
+              {devopsLast ? `${devopsLast.status} • ${devopsLast.startedAt.toISOString().replace("T", " ").slice(0, 19)}` : "—"}
+            </span>
+            {scheduleByKey.get("devops_radar") ? (
+              <div className="mt-1 text-xs text-white/50">
+                Automation: {scheduleByKey.get("devops_radar")!.enabled ? "on" : "off"} • next{" "}
+                {scheduleByKey.get("devops_radar")!.nextRunAt
+                  ? scheduleByKey.get("devops_radar")!.nextRunAt!.toISOString().replace("T", " ").slice(0, 19)
+                  : "—"}
+              </div>
+            ) : (
+              <div className="mt-1 text-xs text-white/50">Automation: not scheduled</div>
+            )}
+          </div>
+
+          <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
+            {devopsLive != null ? (devopsLive.trim() ? devopsLive : "Queued…") : devopsPreview}
+          </pre>
+
+          <div className="mt-3">
+            <RunAgent
+              title="Run DevOps report"
+              fieldName="focus"
+              fieldPlaceholder='Optional focus (e.g., “Backstage 2026 best practices”, “Octopus deploy patterns”, “OpenTelemetry rollout”)'
+              actionLabel="Run"
+              action={runDevOpsAgent}
+            />
+          </div>
+
+          <div className="mt-3">
+            <AskCodex
+              title="Ask Codex (devops)"
+              context="devops"
+              placeholder='Examples: “What should I learn this week?”, “Explain a new DevOps trend and how to apply it at my job”, “Give me a 30-minute study plan.”'
+              action={queueCodexTask}
+            />
+          </div>
+        </PanelCard>
+      </div>
+    ),
+    jobs: (
+      <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
+        <PanelCard
+          title="Agent jobs"
+          subtitle="Non-chat queue + runner status."
+          right={
+            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/ai">
+              Open
+            </Link>
+          }
+        >
+          <ul className="space-y-2 text-sm">
+            {recentJobs.length === 0 ? (
+              <li className="text-white/60">No jobs yet.</li>
+            ) : (
+              recentJobs.map((j) => (
+                <li key={j.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                  <span className="truncate pr-3">{j.kind}</span>
+                  <span className="text-xs text-white/60">{j.status}</span>
+                </li>
+              ))
+            )}
+          </ul>
+        </PanelCard>
+      </div>
+    ),
+    codex: (
+      <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
+        <PanelCard
+          title="Codex"
+          subtitle="Chat-style LOCAL runs (single in-flight)."
+          right={
+            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/codex">
+              Open
+            </Link>
+          }
+        >
+          <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
+            Active:{" "}
+            <span className="text-white/80">
+              {activeCodex ? `${activeCodex.status} • ${activeCodex.createdAt.toISOString().replace("T", " ").slice(0, 19)}` : "—"}
+            </span>
+          </div>
+
+          {activeCodex?.resultText ? (
+            <pre className="mt-3 max-h-40 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/80">
+              {activeCodex.resultText}
+            </pre>
+          ) : lastCodex?.resultText ? (
+            <pre className="mt-3 max-h-40 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/80">
+              {lastCodex.resultText}
+            </pre>
+          ) : null}
+
+          <div className="mt-3">
+            <AskCodex title="Ask Codex" action={queueCodexTask} />
+          </div>
+        </PanelCard>
+      </div>
+    ),
+    devotional: (
+      <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
+        <PanelCard
+          title="Daily devotional"
+          subtitle="A short biblical teaching for the day."
+          right={<div className="text-xs text-white/50">{devotional.source === "thebibleapi" ? "source: web" : "source: offline"}</div>}
+        >
+          <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-white/60">{devotional.reference}</div>
+            <div className="mt-2 text-sm text-white/90">{devotional.text}</div>
+            <div className="mt-3 text-xs text-white/60">Takeaway: {devotional.takeaway}</div>
+          </div>
+          <div className="mt-3">
+            <AskCodex
+              title="Ask Codex (apply this)"
+              context="devotional"
+              placeholder='Try: “Help me apply this to my work today”, “Write a short prayer for this”, “Give me a 5-minute reflection.”'
+              action={queueCodexTask}
+            />
+          </div>
+        </PanelCard>
+      </div>
+    ),
+    allsite: (
+      <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
+        <PanelCard
+          title="Allsite hub (site photos)"
+          subtitle="Live data + snapshot status."
+          right={
+            <div className="flex gap-2">
+              <a
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
+                href={process.env.ALLSITE_CENTRAL_HUB_URL ?? "https://allsitefacilities-centralhub.loca.lt"}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open
+              </a>
+              <Link className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90" href="/central-hub">
+                Embed
+              </Link>
+            </div>
+          }
+        >
+          <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+            {allsite.ok ? (
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm text-white/80">
+                  Snapshot:{" "}
+                  <span className={allsite.hasSnapshot ? "text-emerald-300" : "text-amber-300"}>
+                    {allsite.hasSnapshot ? "available" : "missing"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {scheduleByKey.get("allsite_update") ? (
+                    <form action={runScheduleNow.bind(null, scheduleByKey.get("allsite_update")!.id)}>
+                      <button className="rounded-xl bg-fuchsia-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-fuchsia-400">
+                        Run now
+                      </button>
+                    </form>
+                  ) : (
+                    <Link className="text-xs text-white/70 hover:text-white" href="/automations">
+                      Schedule →
+                    </Link>
+                  )}
+                  <a
+                    className="text-xs text-white/70 hover:text-white"
+                    href={`${allsite.base.replace(/\/$/, "")}/api/update`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Update page →
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-white/70">Couldn’t load hub summary: {allsite.error}</div>
+            )}
+            {allsite.ok && allsite.updateStatus ? (
+              <div className="mt-2 text-xs text-white/60">
+                Update: {String(allsite.updateStatus.state ?? "—")} {allsite.updateStatus.running ? "(running)" : ""}
+              </div>
+            ) : null}
+            {scheduleByKey.get("allsite_update") ? (
+              <div className="mt-1 text-xs text-white/50">
+                Automation: {scheduleByKey.get("allsite_update")!.enabled ? "on" : "off"} • next{" "}
+                {scheduleByKey.get("allsite_update")!.nextRunAt
+                  ? scheduleByKey.get("allsite_update")!.nextRunAt!.toISOString().replace("T", " ").slice(0, 19)
+                  : "—"}
+              </div>
+            ) : null}
+          </div>
+
+          {allsite.ok ? (
+            <div className="mt-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Today</div>
+                  <div className="mt-1 text-2xl font-semibold">{String(allsite.today?.total ?? 0)}</div>
+                  <div className="mt-1 text-xs text-white/60">
+                    issues: {allsite.today?.withIssues ? "yes" : "no"} • critical: {String(allsite.today?.critical?.length ?? 0)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Yesterday</div>
+                  <div className="mt-1 text-2xl font-semibold">{String(allsite.yesterday?.total ?? 0)}</div>
+                  <div className="mt-1 text-xs text-white/60">
+                    issues: {allsite.yesterday?.withIssues ? "yes" : "no"} • critical:{" "}
+                    {String(allsite.yesterday?.critical?.length ?? 0)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Today (latest)</div>
+                <div className="mt-2 grid gap-2">
+                  {Array.isArray(allsite.today?.timeline) && allsite.today.timeline.length > 0 ? (
+                    allsite.today.timeline.slice(0, 6).map((t: Record<string, unknown>, idx: number) => (
+                      <div key={idx} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="truncate text-sm font-medium">{String(t.site ?? "Site")}</div>
+                          <div className="text-xs text-white/60">{Boolean(t.suspect) ? "⚠︎" : "OK"}</div>
+                        </div>
+                        <div className="mt-1 text-xs text-white/50">
+                          {String(t.vendor ?? "")} • {String(t.formName ?? "")}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-white/60">No submissions yet.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <AskCodex
+                  title="Ask Codex (allsite)"
+                  context="allsite"
+                  placeholder='Examples: “Summarize issues from today’s submissions”, “List critical sites to follow up”, “Draft a message to a vendor about missing photos.”'
+                  action={queueCodexTask}
+                />
+              </div>
+            </div>
+          ) : null}
+        </PanelCard>
+      </div>
+    ),
+    budget: (
+      <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
+        <PanelCard
+          title="Budget (this month)"
+          subtitle="Income, expenses, and net."
+          right={
+            <Link className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90" href="/budget">
+              Open
+            </Link>
+          }
+        >
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Income</div>
+              <div className="mt-1 text-lg font-semibold">{dollars(income)}</div>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Expenses</div>
+              <div className="mt-1 text-lg font-semibold">{dollars(expenses)}</div>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Net</div>
+              <div className="mt-1 text-lg font-semibold">{dollars(net)}</div>
+            </div>
+          </div>
+          <div className="mt-4">
+            <AskCodex title="Ask Codex (budget)" context="budget" action={queueCodexTask} />
+          </div>
+        </PanelCard>
+      </div>
+    ),
+    inbox: (
+      <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
+        <PanelCard
+          title="Inbox (Gmail)"
+          subtitle="Triage and turn important items into tasks."
+          right={
+            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/inbox">
+              Open
+            </Link>
+          }
+        >
+          <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
+            Last triage: {gmailRun ? gmailRun.startedAt.toISOString().replace("T", " ").slice(0, 19) : "—"}
+          </div>
+          <div className="mt-4">
+            <AskCodex title="Ask Codex (gmail)" context="gmail" action={queueCodexTask} />
+          </div>
+          <div className="mt-3 text-xs text-white/50">
+            Schedule it in Automations → “Gmail inbox triage” (runs when your laptop companion is connected).
+          </div>
+        </PanelCard>
+      </div>
+    ),
+    deploy: (
+      <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]">
+        <PanelCard title="Deploy / restart" subtitle="One-click redeploy via the VPS worker.">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Link className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm hover:bg-white/10" href="/deploy">
+              Queue redeploy
+            </Link>
+            <Link className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm hover:bg-white/10" href="/services">
+              Services
+            </Link>
+          </div>
+          <div className="mt-3">
+            <Link className="text-xs text-white/70 hover:text-white" href="/deploy">
+              Open deploy page →
+            </Link>
+          </div>
+        </PanelCard>
+      </div>
+    ),
+  };
+
   return (
     <main className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-white/10 bg-zinc-950/80 backdrop-blur">
@@ -204,497 +672,14 @@ export default async function DashboardHome({
       </header>
 
       <section className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">
-        <GridLayoutEditor edit={edit} allowedIds={PANEL_IDS} initialLayout={gridLayout} onSave={saveGridLayout}>
-          <div
-            key="today"
-            className="h-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
-          >
-            <PanelCard
-              title="Today"
-              subtitle={`${counts.openTodos} open tasks • ${counts.queuedJobs} queued jobs`}
-              right={<div className="hidden text-xs text-white/60 sm:block">Tip: keep it small, keep it moving.</div>}
-            >
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Quick add</div>
-                  <form action={addTodo} className="mt-2 grid gap-2">
-                    <input
-                      name="title"
-                      placeholder="Add a task…"
-                      className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:ring-2 focus:ring-fuchsia-500/50"
-                    />
-                    <input
-                      name="notes"
-                      placeholder="Notes (optional)"
-                      className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:ring-2 focus:ring-fuchsia-500/50"
-                    />
-                    <button className="w-fit rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90">
-                      Add
-                    </button>
-                  </form>
-                </div>
-
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Open tasks</div>
-                    <Link className="text-xs text-white/70 hover:text-white" href="/todo">
-                      Manage →
-                    </Link>
-                  </div>
-                  <ul className="mt-2 space-y-2">
-                    {openTodos.length === 0 ? (
-                      <li className="text-sm text-white/60">No open tasks.</li>
-                    ) : (
-                      openTodos.map((t) => (
-                        <li key={t.id} className="rounded-xl border border-white/10 bg-black/30 p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-medium">{t.title}</div>
-                              {t.notes ? <div className="mt-1 line-clamp-2 text-sm text-white/70">{t.notes}</div> : null}
-                              <div className="mt-2 text-xs text-white/50">{t.pinned ? "Pinned" : "—"}</div>
-                            </div>
-                            <div className="flex shrink-0 flex-col gap-2">
-                              <form action={togglePinned.bind(null, t.id)}>
-                                <button className="rounded-xl border border-white/10 bg-white/5 px-2 py-1 text-xs hover:bg-white/10">
-                                  {t.pinned ? "Unpin" : "Pin"}
-                                </button>
-                              </form>
-                              <form action={markDone.bind(null, t.id)}>
-                                <button className="rounded-xl bg-fuchsia-500 px-2 py-1 text-xs font-semibold text-black hover:bg-fuchsia-400">
-                                  Done
-                                </button>
-                              </form>
-                            </div>
-                          </div>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </PanelCard>
-          </div>
-
-          <div
-            key="bizdev"
-            className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
-          >
-            <PanelCard
-              title="BizDev (Allsite growth)"
-              subtitle="Targets + outreach drafts."
-              right={
-                <div className="flex gap-2">
-                  <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/agents/bizdev">
-                    Open
-                  </Link>
-                  <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/automations">
-                    Schedule
-                  </Link>
-                </div>
-              }
-            >
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
-                Last report:{" "}
-                <span className="text-white/80">
-                  {bizdevLast ? `${bizdevLast.status} • ${bizdevLast.startedAt.toISOString().replace("T", " ").slice(0, 19)}` : "—"}
-                </span>
-                {scheduleByKey.get("bizdev_digest") ? (
-                  <div className="mt-1 text-xs text-white/50">
-                    Automation: {scheduleByKey.get("bizdev_digest")!.enabled ? "on" : "off"} • next{" "}
-                    {scheduleByKey.get("bizdev_digest")!.nextRunAt
-                      ? scheduleByKey.get("bizdev_digest")!.nextRunAt!.toISOString().replace("T", " ").slice(0, 19)
-                      : "—"}
-                  </div>
-                ) : (
-                  <div className="mt-1 text-xs text-white/50">Automation: not scheduled</div>
-                )}
-              </div>
-
-              <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
-                {bizdevLive != null ? (bizdevLive.trim() ? bizdevLive : "Queued…") : bizdevPreview}
-              </pre>
-
-              <div className="mt-3">
-                <RunAgent
-                  title="Run BizDev report"
-                  fieldName="notes"
-                  fieldPlaceholder='Optional notes (e.g., “focus on Western PA corporate campuses”, “prioritize woke brands”, “draft calls for facilities managers”)'
-                  actionLabel="Run"
-                  action={runBizDevAgent}
-                />
-              </div>
-
-              <div className="mt-3">
-                <AskCodex
-                  title="Ask Codex (bizdev)"
-                  context="bizdev"
-                  placeholder='Examples: “Find 10 multi-site targets in PA/OH + decision-maker contacts”, “Draft outreach email + call script”, “What should we pitch next week?”'
-                  action={queueCodexTask}
-                />
-              </div>
-            </PanelCard>
-          </div>
-
-          <div
-            key="devops"
-            className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
-          >
-            <PanelCard
-              title="DevOps Radar (career)"
-              subtitle="New tech + implementation steps."
-              right={
-                <div className="flex gap-2">
-                  <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/agents/devops">
-                    Open
-                  </Link>
-                  <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/automations">
-                    Schedule
-                  </Link>
-                </div>
-              }
-            >
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
-                Last report:{" "}
-                <span className="text-white/80">
-                  {devopsLast ? `${devopsLast.status} • ${devopsLast.startedAt.toISOString().replace("T", " ").slice(0, 19)}` : "—"}
-                </span>
-                {scheduleByKey.get("devops_radar") ? (
-                  <div className="mt-1 text-xs text-white/50">
-                    Automation: {scheduleByKey.get("devops_radar")!.enabled ? "on" : "off"} • next{" "}
-                    {scheduleByKey.get("devops_radar")!.nextRunAt
-                      ? scheduleByKey.get("devops_radar")!.nextRunAt!.toISOString().replace("T", " ").slice(0, 19)
-                      : "—"}
-                  </div>
-                ) : (
-                  <div className="mt-1 text-xs text-white/50">Automation: not scheduled</div>
-                )}
-              </div>
-
-              <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
-                {devopsLive != null ? (devopsLive.trim() ? devopsLive : "Queued…") : devopsPreview}
-              </pre>
-
-              <div className="mt-3">
-                <RunAgent
-                  title="Run DevOps report"
-                  fieldName="focus"
-                  fieldPlaceholder='Optional focus (e.g., “Backstage 2026 best practices”, “Octopus deploy patterns”, “OpenTelemetry rollout”)'
-                  actionLabel="Run"
-                  action={runDevOpsAgent}
-                />
-              </div>
-
-              <div className="mt-3">
-                <AskCodex
-                  title="Ask Codex (devops)"
-                  context="devops"
-                  placeholder='Examples: “What should I learn this week?”, “Explain a new DevOps trend and how to apply it at my job”, “Give me a 30-minute study plan.”'
-                  action={queueCodexTask}
-                />
-              </div>
-            </PanelCard>
-          </div>
-
-          <div
-            key="jobs"
-            className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
-          >
-            <PanelCard title="Agent jobs" subtitle="Non-chat queue + runner status." right={<Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/ai">Open</Link>}>
-              <ul className="space-y-2 text-sm">
-                {recentJobs.length === 0 ? (
-                  <li className="text-white/60">No jobs yet.</li>
-                ) : (
-                  recentJobs.map((j) => (
-                    <li
-                      key={j.id}
-                      className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2"
-                    >
-                      <span className="truncate pr-3">{j.kind}</span>
-                      <span className="text-xs text-white/60">{j.status}</span>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </PanelCard>
-          </div>
-
-          <div
-            key="codex"
-            className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
-          >
-                <PanelCard
-                  title="Codex"
-                  subtitle="Chat-style LOCAL runs (single in-flight)."
-                  right={
-                    <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/codex">
-                      Open
-                    </Link>
-                  }
-                >
-                  <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
-                    Active:{" "}
-                    <span className="text-white/80">
-                      {activeCodex
-                        ? `${activeCodex.status} • ${activeCodex.createdAt.toISOString().replace("T", " ").slice(0, 19)}`
-                        : "—"}
-                    </span>
-                  </div>
-
-                  {activeCodex?.resultText ? (
-                    <pre className="mt-3 max-h-40 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/80">
-                      {activeCodex.resultText}
-                    </pre>
-                  ) : lastCodex?.resultText ? (
-                    <pre className="mt-3 max-h-40 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/80">
-                      {lastCodex.resultText}
-                    </pre>
-                  ) : null}
-
-                  <div className="mt-3">
-                    <AskCodex title="Ask Codex" action={queueCodexTask} />
-                  </div>
-                </PanelCard>
-              </div>
-
-              <div
-                key="devotional"
-                className="h-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
-              >
-                <PanelCard
-                  title="Daily devotional"
-                  subtitle="A short biblical teaching for the day."
-                  right={
-                    <div className="text-xs text-white/50">
-                      {devotional.source === "thebibleapi" ? "source: web" : "source: offline"}
-                    </div>
-                  }
-                >
-                  <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-white/60">{devotional.reference}</div>
-                    <div className="mt-2 text-sm text-white/90">{devotional.text}</div>
-                    <div className="mt-3 text-xs text-white/60">Takeaway: {devotional.takeaway}</div>
-                  </div>
-                  <div className="mt-3">
-                    <AskCodex
-                      title="Ask Codex (apply this)"
-                      context="devotional"
-                      placeholder='Try: “Help me apply this to my work today”, “Write a short prayer for this”, “Give me a 5-minute reflection.”'
-                      action={queueCodexTask}
-                    />
-                  </div>
-                </PanelCard>
-              </div>
-
-              <div
-                key="allsite"
-                className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
-              >
-                <PanelCard
-                  title="Allsite hub (site photos)"
-                  subtitle="Live data + snapshot status."
-                  right={
-                    <div className="flex gap-2">
-                      <a
-                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
-                        href={process.env.ALLSITE_CENTRAL_HUB_URL ?? "https://allsitefacilities-centralhub.loca.lt"}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open
-                      </a>
-                      <Link className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90" href="/central-hub">
-                        Embed
-                      </Link>
-                    </div>
-                  }
-                >
-                  <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                    {allsite.ok ? (
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm text-white/80">
-                          Snapshot:{" "}
-                          <span className={allsite.hasSnapshot ? "text-emerald-300" : "text-amber-300"}>
-                            {allsite.hasSnapshot ? "available" : "missing"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {scheduleByKey.get("allsite_update") ? (
-                            <form action={runScheduleNow.bind(null, scheduleByKey.get("allsite_update")!.id)}>
-                              <button className="rounded-xl bg-fuchsia-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-fuchsia-400">
-                                Run now
-                              </button>
-                            </form>
-                          ) : (
-                            <Link className="text-xs text-white/70 hover:text-white" href="/automations">
-                              Schedule →
-                            </Link>
-                          )}
-                          <a
-                            className="text-xs text-white/70 hover:text-white"
-                            href={`${allsite.base.replace(/\/$/, "")}/api/update`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Update page →
-                          </a>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-white/70">Couldn’t load hub summary: {allsite.error}</div>
-                    )}
-                    {allsite.ok && allsite.updateStatus ? (
-                      <div className="mt-2 text-xs text-white/60">
-                        Update: {String(allsite.updateStatus.state ?? "—")} {allsite.updateStatus.running ? "(running)" : ""}
-                      </div>
-                    ) : null}
-                    {scheduleByKey.get("allsite_update") ? (
-                      <div className="mt-1 text-xs text-white/50">
-                        Automation: {scheduleByKey.get("allsite_update")!.enabled ? "on" : "off"} • next{" "}
-                        {scheduleByKey.get("allsite_update")!.nextRunAt
-                          ? scheduleByKey
-                              .get("allsite_update")!
-                              .nextRunAt!.toISOString()
-                              .replace("T", " ")
-                              .slice(0, 19)
-                          : "—"}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {allsite.ok ? (
-                    <div className="mt-4">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Today</div>
-                          <div className="mt-1 text-2xl font-semibold">{String(allsite.today?.total ?? 0)}</div>
-                          <div className="mt-1 text-xs text-white/60">
-                            issues: {allsite.today?.withIssues ? "yes" : "no"} • critical:{" "}
-                            {String(allsite.today?.critical?.length ?? 0)}
-                          </div>
-                        </div>
-                        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Yesterday</div>
-                          <div className="mt-1 text-2xl font-semibold">{String(allsite.yesterday?.total ?? 0)}</div>
-                          <div className="mt-1 text-xs text-white/60">
-                            issues: {allsite.yesterday?.withIssues ? "yes" : "no"} • critical:{" "}
-                            {String(allsite.yesterday?.critical?.length ?? 0)}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Today (latest)</div>
-                        <div className="mt-2 grid gap-2">
-                          {Array.isArray(allsite.today?.timeline) && allsite.today.timeline.length > 0 ? (
-                            allsite.today.timeline.slice(0, 6).map((t: Record<string, unknown>, idx: number) => (
-                              <div key={idx} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="truncate text-sm font-medium">{String(t.site ?? "Site")}</div>
-                                  <div className="text-xs text-white/60">{Boolean(t.suspect) ? "⚠︎" : "OK"}</div>
-                                </div>
-                                <div className="mt-1 text-xs text-white/50">
-                                  {String(t.vendor ?? "")} • {String(t.formName ?? "")}
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-sm text-white/60">No submissions yet.</div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="mt-4">
-                        <AskCodex
-                          title="Ask Codex (allsite)"
-                          context="allsite"
-                          placeholder='Examples: “Summarize issues from today’s submissions”, “List critical sites to follow up”, “Draft a message to a vendor about missing photos.”'
-                          action={queueCodexTask}
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-                </PanelCard>
-              </div>
-
-              <div
-                key="budget"
-                className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
-              >
-                <PanelCard
-                  title="Budget (this month)"
-                  subtitle="Income, expenses, and net."
-                  right={
-                    <Link className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90" href="/budget">
-                      Open
-                    </Link>
-                  }
-                >
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Income</div>
-                      <div className="mt-1 text-lg font-semibold">{dollars(income)}</div>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Expenses</div>
-                      <div className="mt-1 text-lg font-semibold">{dollars(expenses)}</div>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Net</div>
-                      <div className="mt-1 text-lg font-semibold">{dollars(net)}</div>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <AskCodex title="Ask Codex (budget)" context="budget" action={queueCodexTask} />
-                  </div>
-                </PanelCard>
-              </div>
-
-              <div
-                key="inbox"
-                className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
-              >
-                <PanelCard
-                  title="Inbox (Gmail)"
-                  subtitle="Triage and turn important items into tasks."
-                  right={
-                    <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/inbox">
-                      Open
-                    </Link>
-                  }
-                >
-                  <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
-                    Last triage: {gmailRun ? gmailRun.startedAt.toISOString().replace("T", " ").slice(0, 19) : "—"}
-                  </div>
-                  <div className="mt-4">
-                    <AskCodex title="Ask Codex (gmail)" context="gmail" action={queueCodexTask} />
-                  </div>
-                  <div className="mt-3 text-xs text-white/50">
-                    Schedule it in Automations → “Gmail inbox triage” (runs when your laptop companion is connected).
-                  </div>
-                </PanelCard>
-              </div>
-
-              <div
-                key="deploy"
-                className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,.06)]"
-              >
-                <PanelCard title="Deploy / restart" subtitle="One-click redeploy via the VPS worker.">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Link className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm hover:bg-white/10" href="/deploy">
-                      Queue redeploy
-                    </Link>
-                    <Link className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm hover:bg-white/10" href="/services">
-                      Services
-                    </Link>
-                  </div>
-                  <div className="mt-3">
-                    <Link className="text-xs text-white/70 hover:text-white" href="/deploy">
-                      Open deploy page →
-                    </Link>
-                  </div>
-                </PanelCard>
-              </div>
-        </GridLayoutEditor>
+        <GridLayoutEditor
+          edit={edit}
+          allowedIds={PANEL_IDS}
+          initialLayout={gridLayout}
+          onSave={saveGridLayout}
+          onReset={resetGridLayout}
+          panels={panels}
+        />
       </section>
     </main>
   );

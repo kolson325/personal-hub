@@ -97,6 +97,15 @@ export async function resetPanelLayout() {
   revalidatePath("/");
 }
 
+export async function resetGridLayout() {
+  await prisma.panelLayout.upsert({
+    where: { id: "default" },
+    update: { orderJson: JSON.stringify(DEFAULT_ORDER), layoutJson: JSON.stringify(DEFAULT_LAYOUT) },
+    create: { id: "default", orderJson: JSON.stringify(DEFAULT_ORDER), layoutJson: JSON.stringify(DEFAULT_LAYOUT) },
+  });
+  revalidatePath("/");
+}
+
 export async function getGridLayout(): Promise<GridItem[]> {
   const row = await prisma.panelLayout.findUnique({ where: { id: "default" } });
   if (!row?.layoutJson) return DEFAULT_LAYOUT;
