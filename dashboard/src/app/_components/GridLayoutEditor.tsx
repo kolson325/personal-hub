@@ -175,12 +175,16 @@ export function GridLayoutEditor({
         onBreakpointChange={(bp: string) => setBreakpoint((bp as Breakpoint) ?? "lg")}
         onLayoutChange={(current: Layout[], all: Layouts) => {
           if (!canEdit) return;
-          if (!didInitRef.current) {
-            didInitRef.current = true;
-            return;
-          }
+          if (!didInitRef.current) didInitRef.current = true;
           const normalized = normalize(all.lg ?? current, allowed);
           setLayout(normalized);
+        }}
+        onDragStop={() => {
+          if (!canEdit || !didInitRef.current) return;
+          setDirty(true);
+        }}
+        onResizeStop={() => {
+          if (!canEdit || !didInitRef.current) return;
           setDirty(true);
         }}
       >
