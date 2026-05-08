@@ -35,6 +35,52 @@ const REGIONS = [
   }
 ];
 
+const REGION_CENTERS = {
+  cincinnati: { lat: 39.1031, lng: -84.5120 },
+  dayton: { lat: 39.7589, lng: -84.1916 },
+  toledo: { lat: 41.6528, lng: -83.5379 },
+  pittsburgh: { lat: 40.4406, lng: -79.9959 }
+};
+
+function haversineMiles(lat1, lng1, lat2, lng2) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 3958.8; // earth radius miles
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function classifyRegion(meta, siteName) {
+  const state = String(meta?.state ?? "").toUpperCase();
+  const lat = Number(meta?.lat);
+  const lng = Number(meta?.lng);
+  if (state === "PA") return "pittsburgh";
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    const distances = [
+      ["cincinnati", haversineMiles(lat, lng, REGION_CENTERS.cincinnati.lat, REGION_CENTERS.cincinnati.lng)],
+      ["dayton", haversineMiles(lat, lng, REGION_CENTERS.dayton.lat, REGION_CENTERS.dayton.lng)],
+      ["toledo", haversineMiles(lat, lng, REGION_CENTERS.toledo.lat, REGION_CENTERS.toledo.lng)]
+    ];
+    distances.sort((a, b) => a[1] - b[1]);
+    return distances[0]?.[0] ?? null;
+  }
+
+  // Fallback: keyword match on name/city/state string.
+  const lowerName = String(siteName ?? "").toLowerCase();
+  const lowerCity = String(meta?.city ?? "").toLowerCase();
+  const lowerState = String(meta?.state ?? "").toLowerCase();
+  const lower = `${lowerName} ${lowerCity} ${lowerState}`;
+  for (const r of REGIONS) {
+    if (r.key === "pittsburgh") continue;
+    if (r.keywords.some((kw) => lower.includes(kw))) return r.key;
+  }
+  return null;
+}
+
 function siteMatchesRegion(siteName, regionKey) {
   if (!regionKey) return true;
   const region = REGIONS.find((r) => r.key === regionKey);
@@ -46,13 +92,9 @@ function siteMatchesRegion(siteName, regionKey) {
   const lower = `${lowerName} ${lowerCity} ${lowerState}`;
 
   // If we have structured metadata, prefer it.
-  if (meta && regionKey === "pittsburgh") {
-    // Everything in PA is treated as Pittsburgh-area for this dashboard.
-    if (lowerState === "pa") return true;
-  }
-  if (meta && ["cincinnati", "dayton", "toledo"].includes(regionKey)) {
-    // Non-PA regions are Ohio-focused.
-    if (lowerState === "pa") return false;
+  if (meta) {
+    const bucket = classifyRegion(meta, siteName);
+    if (bucket) return bucket === regionKey;
   }
 
   return region.keywords.some((kw) => lower.includes(kw));
