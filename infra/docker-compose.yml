@@ -18,7 +18,7 @@ services:
     build:
       context: ../dashboard
     restart: unless-stopped
-    command: ["sh","-c","mkdir -p /data && touch /data/app.db && npx prisma db push --accept-data-loss && node worker/worker.mjs"]
+    command: ["sh","-c","mkdir -p /data && touch /data/app.db && node worker/worker.mjs"]
     environment:
       TZ: ${TZ:-America/New_York}
       NODE_ENV: production
@@ -38,6 +38,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/infra
       - ../:/repo
+    depends_on:
+      - dashboard
 
   caddy:
     image: caddy:2
