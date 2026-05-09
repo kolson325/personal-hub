@@ -195,19 +195,23 @@ async function tickSchedules() {
   }
 }
 
-async function runAgentRun(agentType, input, outputMarkdown) {
-  const run = await prisma.agentRun.create({
-    data: {
-      agentType,
-      status: "running",
-      inputJson: input ? JSON.stringify(input) : null,
-    },
-  });
+async function saveAgentRun(agentType, input, outputMarkdown, sourceJobId) {
+  const existing = sourceJobId
+    ? await prisma.agentRun.findUnique({ where: { sourceJobId } }).catch(() => null)
+    : null;
 
-  await prisma.agentRun.update({
-    where: { id: run.id },
-    data: { status: "succeeded", finishedAt: new Date(), outputMarkdown },
-  });
+  const data = {
+    agentType,
+    status: "succeeded",
+    inputJson: input ? JSON.stringify(input) : null,
+    outputMarkdown,
+    finishedAt: new Date(),
+    ...(sourceJobId ? { sourceJobId } : {}),
+  };
+
+  const run = existing
+    ? await prisma.agentRun.update({ where: { id: existing.id }, data })
+    : await prisma.agentRun.create({ data });
 
   await rememberAgentOutput(agentType, run.id, outputMarkdown).catch(() => {});
   return run.id;
@@ -296,7 +300,7 @@ async function handleJob(job) {
           return;
         }
         const md = `## Allsite Hub Update\n\nAllsite update queued successfully.\n\n${text.slice(0, 2000)}`;
-        await runAgentRun("allsite", { url }, md);
+        await saveAgentRun("allsite", { url }, md, job.id);
         await finishJob(job.id, "SUCCEEDED", md, null);
         return;
       } catch (e) {
@@ -317,7 +321,7 @@ async function handleJob(job) {
         `- Certified woman-owned business.\n\n` +
         `Next step to make this “real”:\n` +
         `- Add web research sources + an LLM summarizer and store contacts.\n`;
-      await runAgentRun("bizdev", { notes }, md);
+      await saveAgentRun("bizdev", { notes }, md, job.id);
       await finishJob(job.id, "SUCCEEDED", "BizDev digest saved to Agent Runs.", null);
       return;
     }
@@ -333,7 +337,7 @@ async function handleJob(job) {
         `- Supply chain: SBOMs, provenance signing, secret scanning.\n\n` +
         `Next step to make this “real”:\n` +
         `- Add RSS/source list + weekly digest + “what changed” diffs.\n`;
-      await runAgentRun("devops", { focus }, md);
+      await saveAgentRun("devops", { focus }, md, job.id);
       await finishJob(job.id, "SUCCEEDED", "DevOps digest saved to Agent Runs.", null);
       return;
     }
@@ -344,7 +348,7 @@ async function handleJob(job) {
         `Not connected to email yet.\n\n` +
         `Next step:\n` +
         `- Connect Gmail and summarize important threads into Tasks.\n`;
-      await runAgentRun("todo", {}, md);
+      await saveAgentRun("todo", {}, md, job.id);
       await finishJob(job.id, "SUCCEEDED", "Triage placeholder saved to Agent Runs.", null);
       return;
     }
@@ -366,7 +370,7 @@ async function handleJob(job) {
         (results.length === 0
           ? `No service URLs configured.\n`
           : results.map((r) => `- ${r.name}: ${r.url} → ${r.status}${r.error ? ` (${r.error})` : ""}`).join("\n"));
-      await runAgentRun("services", {}, md);
+      await saveAgentRun("services", {}, md, job.id);
       await finishJob(job.id, "SUCCEEDED", "Service ping saved to Agent Runs.", null);
       return;
     }
@@ -403,7 +407,7 @@ async function handleJob(job) {
         (topCats.length === 0 ? `- (no expenses)\n` : topCats.map(([k, v]) => `- ${k}: ${fmt(v)}`).join("\n")) +
         `\n\nNext step (optional): tag entries consistently (Gas/Food/Bills/etc.) for clearer insights.\n`;
 
-      await runAgentRun("budget", {}, md);
+      await saveAgentRun("budget", {}, md, job.id);
       await finishJob(job.id, "SUCCEEDED", "Budget digest saved to Agent Runs.", null);
       return;
     }

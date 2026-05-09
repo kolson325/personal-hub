@@ -275,7 +275,7 @@ export async function runScheduleNow(id: string) {
   if (!agentType) agentType = agentTypeByKey.get(s.key) ?? null;
   if (s.key === "gmail_triage" || s.key === "combine_scan") requiresLocal = true;
   const memoryMarkdown = agentType ? await getAgentMemoryMarkdown(agentType) : "";
-  await prisma.agentJob.create({
+  const job = await prisma.agentJob.create({
     data: {
       kind: "automation",
       scheduleId: s.id,
@@ -284,6 +284,18 @@ export async function runScheduleNow(id: string) {
       runner: requiresLocal ? "LOCAL" : "VPS",
     },
   });
+  if (agentType) {
+    await prisma.agentRun
+      .create({
+        data: {
+          agentType,
+          status: "running",
+          sourceJobId: job.id,
+          inputJson: JSON.stringify({ scheduleKey: s.key, scheduleId: s.id }),
+        },
+      })
+      .catch(() => {});
+  }
   revalidatePath("/automations");
   revalidatePath("/");
 }
