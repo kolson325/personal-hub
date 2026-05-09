@@ -22,10 +22,21 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI,
     Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 * {
   scrollbar-color: rgba(255, 255, 255, 0.24) rgba(255, 255, 255, 0.06);
+  -webkit-tap-highlight-color: rgba(244, 63, 94, 0.18);
+}
+
+button,
+a,
+input,
+textarea {
+  touch-action: manipulation;
 }
 
 pre,
@@ -71,4 +82,38 @@ code {
 }
 .react-grid-item.react-draggable-dragging .panel-drag {
   cursor: grabbing;
+}
+
+.mobile-feed-card {
+  min-width: 0;
+}
+
+.mobile-report {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .dashboard-grid-shell .react-grid-layout {
+    display: grid;
+    height: auto !important;
+    gap: 14px;
+  }
+
+  .dashboard-grid-shell .react-grid-item {
+    position: relative !important;
+    width: auto !important;
+    height: auto !important;
+    transform: none !important;
+    transition: none;
+  }
+
+  .dashboard-grid-shell .react-grid-item > .react-resizable-handle,
+  .dashboard-grid-shell .react-grid-placeholder {
+    display: none !important;
+  }
+
+  .dashboard-grid-shell .panel-drag {
+    cursor: default;
+  }
 }

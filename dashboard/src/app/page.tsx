@@ -697,50 +697,50 @@ export default async function DashboardHome({
 
   return (
     <main className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b border-white/10 bg-zinc-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6 sm:py-4">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-zinc-950/88 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <h1 className="truncate text-xl font-semibold tracking-tight">Kolson’s Dashboard</h1>
+              <h1 className="truncate text-lg font-semibold tracking-tight sm:text-xl">Kolson’s Dashboard</h1>
               <span className="hidden rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70 sm:inline">
                 {formatToday()}
               </span>
             </div>
-            <p className="mt-1 text-sm text-white/70">
+            <p className="mt-1 line-clamp-1 text-xs text-white/70 sm:text-sm">
               Morning brief, automations, agents, and deploy controls.
             </p>
           </div>
-          <div className="no-scrollbar flex max-w-[75vw] shrink-0 items-center gap-2 overflow-x-auto">
-            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/inbox">
+          <div className="no-scrollbar -mx-1 flex max-w-full items-center gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:max-w-[75vw] sm:shrink-0 sm:pb-0">
+            <Link className="min-h-10 shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10" href="/inbox">
               Inbox
             </Link>
-            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/budget">
+            <Link className="min-h-10 shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10" href="/budget">
               Budget
             </Link>
-            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/automations">
+            <Link className="min-h-10 shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10" href="/automations">
               Automations
             </Link>
-            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/todo">
+            <Link className="min-h-10 shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10" href="/todo">
               Tasks
             </Link>
-            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/deploy">
+            <Link className="min-h-10 shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10" href="/deploy">
               Deploy
             </Link>
-            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/ai">
+            <Link className="min-h-10 shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10" href="/ai">
               Jobs
             </Link>
-            <Link className="rounded-xl bg-fuchsia-500 px-3 py-2 text-sm font-semibold text-black hover:bg-fuchsia-400" href="/codex">
+            <Link className="min-h-10 shrink-0 rounded-xl bg-fuchsia-500 px-3 py-2.5 text-sm font-semibold text-black hover:bg-fuchsia-400" href="/codex">
               Codex
             </Link>
             {/* Use a plain anchor here to force a full navigation so query params reliably apply in Safari. */}
             <a
-              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
+              className="min-h-10 shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10"
               href={edit ? "/" : "/?edit=1"}
             >
               {edit ? "Done editing" : "Edit layout"}
             </a>
             <form action={logout}>
-              <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">
+              <button className="min-h-10 shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10">
                 Sign out
               </button>
             </form>
@@ -748,7 +748,7 @@ export default async function DashboardHome({
         </div>
       </header>
 
-      <section className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">
+      <section className="mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-6">
         <GridLayoutEditor
           edit={edit}
           allowedIds={PANEL_IDS}

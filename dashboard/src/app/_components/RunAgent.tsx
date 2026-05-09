@@ -27,7 +27,7 @@ export function RunAgent({
   const ref = useRef<HTMLTextAreaElement | null>(null);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-3 sm:p-4">
       <div className="text-xs font-semibold uppercase tracking-wide text-white/60">{title}</div>
       <form
         action={(fd) => {
@@ -45,11 +45,11 @@ export function RunAgent({
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={fieldPlaceholder}
-          className="min-h-20 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:ring-2 focus:ring-fuchsia-500/50"
+          className="min-h-24 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-3 text-base text-white placeholder:text-white/40 outline-none focus:ring-2 focus:ring-fuchsia-500/50 sm:min-h-20 sm:py-2 sm:text-sm"
         />
         <button
           disabled={pending}
-          className="w-fit rounded-xl bg-fuchsia-500 px-3 py-2 text-xs font-semibold text-black hover:bg-fuchsia-400 disabled:opacity-60"
+          className="min-h-11 w-full rounded-xl bg-fuchsia-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-fuchsia-400 disabled:opacity-60 sm:w-fit sm:text-xs"
         >
           {pending ? "Starting…" : actionLabel}
         </button>
@@ -68,4 +68,3 @@ export function RunAgent({
     </div>
   );
 }
-

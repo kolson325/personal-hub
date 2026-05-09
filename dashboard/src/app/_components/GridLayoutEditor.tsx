@@ -78,7 +78,8 @@ export function GridLayoutEditor({
     () => ({ lg: 12, md: 12, sm: 6, xs: 1, xxs: 1 }),
     [],
   );
-  const canEdit = edit;
+  const isPhone = breakpoint === "xs" || breakpoint === "xxs";
+  const canEdit = edit && !isPhone;
 
   const layouts: Layouts = useMemo(
     () => ({
@@ -92,16 +93,17 @@ export function GridLayoutEditor({
   );
 
   return (
-    <div>
+    <div className="dashboard-grid-shell">
       {edit ? (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-2">
           <div className="text-xs text-white/60">
-            Drag to move, pull corners to resize.{" "}
+            <span className="hidden sm:inline">Drag to move, pull corners to resize. </span>
+            <span className="sm:hidden">Phone view stacks panels for easier reading. Resize layout on desktop. </span>
             <span className={dirty ? "text-amber-200" : "text-emerald-200"}>
               {dirty ? "Unsaved changes" : "Saved"}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="mt-3 flex items-center gap-2 sm:mt-0">
             {onReset ? (
               <button
                 type="button"
@@ -113,7 +115,7 @@ export function GridLayoutEditor({
                     window.location.href = "/?edit=1";
                   })
                 }
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10 disabled:opacity-60"
+                className="min-h-10 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10 disabled:opacity-60"
               >
                 {isResetPending ? "Resetting…" : "Reset layout"}
               </button>
@@ -127,7 +129,7 @@ export function GridLayoutEditor({
                   setDirty(false);
                 })
               }
-              className="rounded-xl bg-fuchsia-500 px-3 py-2 text-xs font-semibold text-black hover:bg-fuchsia-400 disabled:opacity-60"
+              className="min-h-10 rounded-xl bg-fuchsia-500 px-3 py-2 text-xs font-semibold text-black hover:bg-fuchsia-400 disabled:opacity-60"
             >
               {isPending ? "Saving…" : "Save layout"}
             </button>
@@ -165,7 +167,7 @@ export function GridLayoutEditor({
         }}
       >
         {allowedIds.map((id) => (
-          <div key={id} className="h-full">
+          <div key={id} className="h-full mobile-feed-card">
             {panels[id] ?? null}
           </div>
         ))}

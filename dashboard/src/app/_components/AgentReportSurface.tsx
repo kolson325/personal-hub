@@ -48,14 +48,14 @@ export function AgentReportSurface({
 
   return (
     <div className="grid gap-4">
-      <section className="border-b border-white/10 pb-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <section className="border-b border-white/10 pb-4 sm:pb-5">
+        <div className="grid gap-4 sm:flex sm:flex-wrap sm:items-start sm:justify-between">
           <div className="max-w-2xl">
             <div className="text-xs font-semibold uppercase tracking-wide text-white/50">{profile.cadence}</div>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight">{profile.title}</h2>
+            <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">{profile.title}</h2>
             <p className="mt-2 text-sm leading-6 text-white/68">{profile.mission}</p>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="grid grid-cols-3 gap-2 text-center text-xs sm:min-w-64">
             <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
               <div className="text-lg font-semibold">{completed}</div>
               <div className="text-white/50">done</div>
@@ -76,34 +76,34 @@ export function AgentReportSurface({
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="grid gap-4">
-          <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-            <div className="flex items-start justify-between gap-3">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3 sm:p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h3 className="text-sm font-semibold">Latest report</h3>
                 <div className="mt-1 text-xs text-white/50">
                   {latest ? `${latest.status} • started ${fmt(latest.startedAt)} • finished ${fmt(latest.finishedAt)}` : "No report yet"}
                 </div>
               </div>
-              <Link className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs hover:bg-white/10" href="/codex">
+              <Link className="min-h-10 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-center text-xs hover:bg-white/10" href="/codex">
                 Watch live
               </Link>
             </div>
             {latest?.outputMarkdown ? (
-              <pre className="mt-4 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-zinc-950/80 p-4 text-sm leading-6 text-white/82">
+              <pre className="mobile-report mt-4 max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-zinc-950/80 p-3 text-sm leading-6 text-white/82 sm:max-h-[520px] sm:p-4">
                 {snippet(latest.outputMarkdown)}
               </pre>
             ) : latest?.error ? (
-              <pre className="mt-4 whitespace-pre-wrap rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+              <pre className="mobile-report mt-4 whitespace-pre-wrap rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100 sm:p-4">
                 {latest.error}
               </pre>
             ) : (
-              <div className="mt-4 rounded-lg border border-dashed border-white/10 p-5 text-sm text-white/55">
+              <div className="mt-4 rounded-xl border border-dashed border-white/10 p-4 text-sm text-white/55 sm:p-5">
                 Run the agent once to create the first saved report.
               </div>
             )}
           </div>
 
-          <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3 sm:p-4">
             <h3 className="text-sm font-semibold">Report history</h3>
             <div className="mt-3 grid gap-2">
               {runs.length === 0 ? (
@@ -143,18 +143,18 @@ export function AgentReportSurface({
             action={queueAction}
           />
 
-          <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3 sm:p-4">
             <h3 className="text-sm font-semibold">Memory</h3>
             <div className="mt-3 grid gap-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-white/45">Latest highlights</div>
-                <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-zinc-950/70 p-3 text-xs leading-5 text-white/72">
+                <pre className="mobile-report mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-zinc-950/70 p-3 text-xs leading-5 text-white/72">
                   {snippet(latestMemory?.valueMarkdown, 2200) || "No saved highlights yet."}
                 </pre>
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-white/45">Long-term context</div>
-                <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-zinc-950/70 p-3 text-xs leading-5 text-white/72">
+                <pre className="mobile-report mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-zinc-950/70 p-3 text-xs leading-5 text-white/72">
                   {snippet(runningContext?.valueMarkdown, 2600) || "The agent will build this after reports complete."}
                 </pre>
               </div>
