@@ -43,6 +43,15 @@ function dollars(cents: number) {
   return `${sign}$${(abs / 100).toFixed(2)}`;
 }
 
+function cleanSnippet(value: string | null | undefined, max = 180) {
+  const clean = String(value ?? "")
+    .replace(/[#*_`>-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return "No report yet.";
+  return clean.length > max ? `${clean.slice(0, max).trim()}…` : clean;
+}
+
 type AllsitePeriod = {
   total?: number;
   withIssues?: boolean;
@@ -694,7 +703,6 @@ export default async function DashboardHome({
       </div>
     ),
   };
-  const mobilePanelIds: PanelId[] = ["today", "bizdev", "devops", "allsite", "budget", "inbox", "devotional", "codex", "jobs", "deploy"];
   const mobileNavItems: Array<{ id: PanelId; label: string }> = [
     { id: "today", label: "Today" },
     { id: "bizdev", label: "BizDev" },
@@ -702,6 +710,11 @@ export default async function DashboardHome({
     { id: "allsite", label: "Allsite" },
     { id: "budget", label: "Money" },
     { id: "inbox", label: "Inbox" },
+  ];
+  const mobilePrimaryAgents = [
+    { id: "bizdev", label: "BizDev", href: "/agents/bizdev", run: bizdevLast, accent: "from-fuchsia-500/22 to-amber-500/10" },
+    { id: "devops", label: "DevOps", href: "/agents/devops", run: devopsLast, accent: "from-sky-500/20 to-fuchsia-500/10" },
+    { id: "allsite", label: "Allsite", href: "/agents/allsite", run: allsiteLast, accent: "from-emerald-500/20 to-sky-500/10" },
   ];
 
   return (
@@ -794,9 +807,9 @@ export default async function DashboardHome({
       <section className="grid gap-4 px-3 pb-28 pt-4 sm:hidden">
         <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-gradient-to-br from-fuchsia-500/20 via-white/[0.08] to-amber-500/10 p-4 shadow-2xl shadow-black/30">
           <div className="text-xs font-semibold uppercase tracking-[0.22em] text-fuchsia-100/75">Mobile view</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">What needs attention?</h1>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Command center</h1>
           <p className="mt-2 text-sm leading-6 text-white/68">
-            Reports first, actions second. This phone view is separate from the desktop grid and optimized for one-thumb navigation.
+            Built for quick checks: read the latest reports, jump to the right agent, then move.
           </p>
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
@@ -822,25 +835,191 @@ export default async function DashboardHome({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          {commandAgents.map(({ id, profile, run, active }) => (
-            <Link key={id} href={`/agents/${id}`} className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 active:scale-[0.99]">
-              <div className="flex items-center justify-between gap-2">
-                <div className="truncate text-sm font-semibold">{profile?.shortTitle ?? id}</div>
-                <span className={active ? "text-[11px] text-emerald-300" : "text-[11px] text-white/45"}>
-                  {active ? "on" : run?.status ?? "idle"}
+        <section id="mobile-today" className="scroll-mt-32 rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Today</h2>
+              <p className="mt-1 text-xs text-white/55">Capture a task without losing momentum.</p>
+            </div>
+            <Link className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-semibold" href="/todo">
+              Tasks
+            </Link>
+          </div>
+          <form action={addTodo} className="mt-4 grid gap-2">
+            <input
+              name="title"
+              placeholder="Add a task…"
+              className="min-h-12 rounded-2xl border border-white/10 bg-black/35 px-4 text-base text-white placeholder:text-white/40 outline-none focus:ring-2 focus:ring-fuchsia-500/50"
+            />
+            <button className="min-h-12 rounded-2xl bg-white px-4 text-sm font-bold text-black">Add task</button>
+          </form>
+          <div className="mt-4 grid gap-2">
+            {openTodos.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white/60">No open tasks.</div>
+            ) : (
+              openTodos.slice(0, 3).map((task) => (
+                <div key={task.id} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                  <div className="line-clamp-1 text-sm font-medium">{task.title}</div>
+                  {task.notes ? <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/55">{task.notes}</div> : null}
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section id="mobile-bizdev" className="scroll-mt-32 grid gap-3">
+          <div className="flex items-end justify-between gap-3 px-1">
+            <div>
+              <h2 className="text-base font-semibold">Agent reports</h2>
+              <p className="mt-1 text-xs text-white/55">The daily assistants replacing “go research this.”</p>
+            </div>
+            <Link className="text-xs font-semibold text-white/65" href="/automations">
+              Schedule →
+            </Link>
+          </div>
+          {mobilePrimaryAgents.map((agent) => (
+            <Link
+              key={agent.id}
+              href={agent.href}
+              className={`rounded-[1.5rem] border border-white/10 bg-gradient-to-br ${agent.accent} p-4 shadow-xl shadow-black/20 active:scale-[0.99]`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-base font-semibold">{agent.label}</div>
+                <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[11px] text-white/65">
+                  {agent.run?.status ?? "idle"}
                 </span>
               </div>
-              <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/55">{profile?.mission}</div>
+              <p className="mt-3 line-clamp-4 text-sm leading-6 text-white/75">
+                {cleanSnippet(agent.run?.outputMarkdown, 260)}
+              </p>
+              <div className="mt-4 flex items-center justify-between text-xs font-semibold text-white/65">
+                <span>{agent.run ? agent.run.startedAt.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "No run"}</span>
+                <span>Open report →</span>
+              </div>
             </Link>
           ))}
-        </div>
+        </section>
 
-        {mobilePanelIds.map((id) => (
-          <section key={id} id={`mobile-${id}`} className="scroll-mt-32">
-            {panels[id] ?? null}
-          </section>
-        ))}
+        <section id="mobile-devops" className="scroll-mt-32 rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">All agents</h2>
+              <p className="mt-1 text-xs text-white/55">Tap any assistant to open its report page.</p>
+            </div>
+            <Link className="rounded-full bg-fuchsia-500 px-3 py-2 text-xs font-bold text-black" href="/codex">
+              Ask
+            </Link>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {commandAgents.map(({ id, profile, run, active }) => (
+              <Link key={id} href={`/agents/${id}`} className="rounded-2xl border border-white/10 bg-black/20 p-3 active:scale-[0.99]">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="truncate text-sm font-semibold">{profile?.shortTitle ?? id}</div>
+                  <span className={active ? "text-[11px] text-emerald-300" : "text-[11px] text-white/45"}>
+                    {active ? "on" : run?.status ?? "idle"}
+                  </span>
+                </div>
+                <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/55">{cleanSnippet(run?.outputMarkdown ?? profile?.mission, 90)}</div>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section id="mobile-allsite" className="scroll-mt-32 rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Allsite</h2>
+              <p className="mt-1 text-xs text-white/55">Site photos, issues, and follow-up signals.</p>
+            </div>
+            <Link className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-semibold" href="/central-hub">
+              Hub
+            </Link>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="text-[11px] uppercase tracking-wide text-white/45">Today</div>
+              <div className="mt-1 text-2xl font-semibold">{allsite.ok ? String(allsite.today?.total ?? 0) : "—"}</div>
+              <div className="mt-1 text-xs text-white/50">critical {allsite.ok ? String(allsite.today?.critical?.length ?? 0) : "—"}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="text-[11px] uppercase tracking-wide text-white/45">Snapshot</div>
+              <div className={allsite.ok && allsite.hasSnapshot ? "mt-1 text-lg font-semibold text-emerald-300" : "mt-1 text-lg font-semibold text-amber-300"}>
+                {allsite.ok && allsite.hasSnapshot ? "Ready" : "Check"}
+              </div>
+              <div className="mt-1 text-xs text-white/50">{allsite.ok ? String(allsite.updateStatus?.state ?? "idle") : "offline"}</div>
+            </div>
+          </div>
+          <p className="mt-4 line-clamp-4 text-sm leading-6 text-white/70">{cleanSnippet(allsiteLast?.outputMarkdown, 250)}</p>
+        </section>
+
+        <section id="mobile-budget" className="scroll-mt-32 rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Money</h2>
+              <p className="mt-1 text-xs text-white/55">Month-to-date snapshot.</p>
+            </div>
+            <Link className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-semibold" href="/budget">
+              Budget
+            </Link>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="text-[11px] text-white/45">Income</div>
+              <div className="mt-1 text-sm font-semibold">{dollars(income)}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="text-[11px] text-white/45">Spend</div>
+              <div className="mt-1 text-sm font-semibold">{dollars(expenses)}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="text-[11px] text-white/45">Net</div>
+              <div className="mt-1 text-sm font-semibold">{dollars(net)}</div>
+            </div>
+          </div>
+          <p className="mt-4 line-clamp-3 text-sm leading-6 text-white/70">{cleanSnippet(budgetLast?.outputMarkdown, 220)}</p>
+        </section>
+
+        <section id="mobile-inbox" className="scroll-mt-32 grid gap-3">
+          <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">Inbox</h2>
+                <p className="mt-1 text-xs text-white/55">Triage result and next email action.</p>
+              </div>
+              <Link className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-semibold" href="/agents/gmail">
+                Agent
+              </Link>
+            </div>
+            <p className="mt-4 line-clamp-4 text-sm leading-6 text-white/70">{cleanSnippet(gmailLatest?.outputMarkdown, 260)}</p>
+          </div>
+          <div className="rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-fuchsia-500/10 p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-white/45">{devotional.reference}</div>
+            <p className="mt-2 line-clamp-4 text-sm leading-6 text-white/80">{devotional.text}</p>
+            <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-white/65">
+              {devotional.takeaway}
+            </div>
+          </div>
+        </section>
+
+        <section className="scroll-mt-32 rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
+          <h2 className="text-base font-semibold">System</h2>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Link className="min-h-12 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-center text-sm font-semibold" href="/ai">
+              Jobs
+            </Link>
+            <Link className="min-h-12 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-center text-sm font-semibold" href="/deploy">
+              Deploy
+            </Link>
+          </div>
+          <div className="mt-3 grid gap-2">
+            {recentJobs.slice(0, 3).map((job) => (
+              <div key={job.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs">
+                <span>{job.kind}</span>
+                <span className="text-white/50">{job.status}</span>
+              </div>
+            ))}
+          </div>
+        </section>
       </section>
 
       <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 gap-1 rounded-[1.65rem] border border-white/10 bg-zinc-950/88 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl sm:hidden">
