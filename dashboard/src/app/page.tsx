@@ -694,10 +694,19 @@ export default async function DashboardHome({
       </div>
     ),
   };
+  const mobilePanelIds: PanelId[] = ["today", "bizdev", "devops", "allsite", "budget", "inbox", "devotional", "codex", "jobs", "deploy"];
+  const mobileNavItems: Array<{ id: PanelId; label: string }> = [
+    { id: "today", label: "Today" },
+    { id: "bizdev", label: "BizDev" },
+    { id: "devops", label: "DevOps" },
+    { id: "allsite", label: "Allsite" },
+    { id: "budget", label: "Money" },
+    { id: "inbox", label: "Inbox" },
+  ];
 
   return (
-    <main className="min-h-screen">
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-zinc-950/88 backdrop-blur-xl">
+    <main id="mobile-top" className="min-h-screen">
+      <header className="hidden border-b border-white/10 bg-zinc-950/88 backdrop-blur-xl sm:sticky sm:top-0 sm:z-20 sm:block">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
@@ -748,7 +757,30 @@ export default async function DashboardHome({
         </div>
       </header>
 
-      <section className="mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-6">
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-zinc-950/92 px-3 py-3 backdrop-blur-xl sm:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-base font-semibold tracking-tight">Kolson Command</div>
+            <div className="mt-0.5 text-xs text-white/55">{formatToday()} • {counts.openTodos} tasks • {counts.queuedJobs} queued</div>
+          </div>
+          <Link className="min-h-10 shrink-0 rounded-2xl bg-fuchsia-500 px-4 py-2.5 text-sm font-bold text-black" href="/codex">
+            Codex
+          </Link>
+        </div>
+        <nav className="no-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1">
+          {mobileNavItems.map((item) => (
+            <a
+              key={item.id}
+              href={`#mobile-${item.id}`}
+              className="min-h-9 shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-semibold text-white/80"
+            >
+              {item.label}
+            </a>
+          ))}
+        </nav>
+      </header>
+
+      <section className="hidden mx-auto max-w-6xl px-3 py-4 sm:block sm:px-6 sm:py-6">
         <GridLayoutEditor
           edit={edit}
           allowedIds={PANEL_IDS}
@@ -758,6 +790,76 @@ export default async function DashboardHome({
           panels={panels}
         />
       </section>
+
+      <section className="grid gap-4 px-3 pb-28 pt-4 sm:hidden">
+        <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-gradient-to-br from-fuchsia-500/20 via-white/[0.08] to-amber-500/10 p-4 shadow-2xl shadow-black/30">
+          <div className="text-xs font-semibold uppercase tracking-[0.22em] text-fuchsia-100/75">Mobile view</div>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight">What needs attention?</h1>
+          <p className="mt-2 text-sm leading-6 text-white/68">
+            Reports first, actions second. This phone view is separate from the desktop grid and optimized for one-thumb navigation.
+          </p>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="text-lg font-semibold">{counts.openTodos}</div>
+              <div className="text-[11px] text-white/50">tasks</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="text-lg font-semibold">{agentRuns.filter((run) => run.status === "running").length}</div>
+              <div className="text-[11px] text-white/50">running</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="text-lg font-semibold">{agentRuns.filter((run) => run.status === "succeeded").length}</div>
+              <div className="text-[11px] text-white/50">reports</div>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Link className="min-h-12 rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-black" href="/codex">
+              Ask Codex
+            </Link>
+            <Link className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-3 text-center text-sm font-bold text-white" href="/automations">
+              Automations
+            </Link>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          {commandAgents.map(({ id, profile, run, active }) => (
+            <Link key={id} href={`/agents/${id}`} className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 active:scale-[0.99]">
+              <div className="flex items-center justify-between gap-2">
+                <div className="truncate text-sm font-semibold">{profile?.shortTitle ?? id}</div>
+                <span className={active ? "text-[11px] text-emerald-300" : "text-[11px] text-white/45"}>
+                  {active ? "on" : run?.status ?? "idle"}
+                </span>
+              </div>
+              <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/55">{profile?.mission}</div>
+            </Link>
+          ))}
+        </div>
+
+        {mobilePanelIds.map((id) => (
+          <section key={id} id={`mobile-${id}`} className="scroll-mt-32">
+            {panels[id] ?? null}
+          </section>
+        ))}
+      </section>
+
+      <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 gap-1 rounded-[1.65rem] border border-white/10 bg-zinc-950/88 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl sm:hidden">
+        <a className="rounded-2xl px-2 py-2.5 text-center text-[11px] font-semibold text-white/75 active:bg-white/10" href="#mobile-top">
+          Home
+        </a>
+        <a className="rounded-2xl px-2 py-2.5 text-center text-[11px] font-semibold text-white/75 active:bg-white/10" href="#mobile-bizdev">
+          Agents
+        </a>
+        <Link className="rounded-2xl bg-fuchsia-500 px-2 py-2.5 text-center text-[11px] font-bold text-black" href="/codex">
+          Codex
+        </Link>
+        <Link className="rounded-2xl px-2 py-2.5 text-center text-[11px] font-semibold text-white/75 active:bg-white/10" href="/todo">
+          Tasks
+        </Link>
+        <Link className="rounded-2xl px-2 py-2.5 text-center text-[11px] font-semibold text-white/75 active:bg-white/10" href="/budget">
+          Money
+        </Link>
+      </nav>
     </main>
   );
 }
