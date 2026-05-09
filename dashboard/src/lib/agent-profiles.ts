@@ -17,7 +17,7 @@ export const AGENT_PROFILES: AgentProfile[] = [
     cadence: "Daily before work",
     route: "/agents/bizdev",
     defaultPrompt:
-      "Create today's Allsite growth report. Focus on target companies, likely decision-maker roles, outreach messages, and the three actions that matter today. Compare against prior memory and do not repeat stale leads unless there is a new angle.",
+      "Create today's Allsite growth research report. Use live public web research where available, including `node scripts/research-web.mjs \"multi-site facilities snow removal landscaping Ohio Pennsylvania\"`. Return 8-12 specific businesses that fit Allsite, with company name, website, region, why they fit, likely decision-maker role/contact path, and a first-touch email/call angle. Compare against prior memory and do not repeat stale leads unless there is a new reason.",
   },
   {
     id: "devops",
@@ -27,7 +27,7 @@ export const AGENT_PROFILES: AgentProfile[] = [
     cadence: "Daily learning block",
     route: "/agents/devops",
     defaultPrompt:
-      "Create today's DevOps radar. Focus on one practical technology shift, why it matters for Octopus/Jenkins/Backstage/Atlassian/Teams/JBoss/Grafana/Kibana, and a 30-minute implementation step. Compare against prior memory.",
+      "Create today's DevOps research radar. Use live public web research where available, including `node scripts/research-web.mjs \"latest Octopus Jenkins Backstage Grafana Kibana DevOps platform engineering release\"`. Focus on new releases, patterns, or tools similar to Octopus/Jenkins/Backstage/Atlassian/Teams/JBoss/Grafana/Kibana. Explain why each matters, how it improves our current technology, source links, and one 30-minute implementation step. Compare against prior memory.",
   },
   {
     id: "budget",

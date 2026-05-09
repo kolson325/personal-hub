@@ -20,9 +20,12 @@ export async function runDevOpsAgent(_prev: DevOpsRunState, formData: FormData):
   }
 
   const text =
-    `Generate my DevOps Radar report.\n` +
+    `Generate my DevOps research radar report.\n` +
     `Stack: Octopus, Jenkins, Backstage, Atlassian, Teams, JBoss, Grafana, Kibana.\n` +
-    `Output: What’s new, why it matters, how to implement (steps), what changed since last run, a 30-minute starter task.\n` +
+    `Use live public web research when available. Start with searches like:\n` +
+    `- node scripts/research-web.mjs "latest Octopus Deploy release Jenkins Backstage Grafana Kibana DevOps platform engineering"\n` +
+    `- node scripts/research-web.mjs "new platform engineering tools 2026 CI CD observability internal developer portal"\n` +
+    `Output: what is new, source links, why it matters for our stack, how it improves current tools, implementation steps, what changed since last run, a 30-minute starter task.\n` +
     `Do not repeat stale advice unless there is new evidence or a better implementation path.\n` +
     (focus ? `\nFOCUS:\n${focus}\n` : "");
   const memoryMarkdown = await getAgentMemoryMarkdown("devops");

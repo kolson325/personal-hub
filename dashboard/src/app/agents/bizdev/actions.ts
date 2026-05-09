@@ -20,10 +20,13 @@ export async function runBizDevAgent(_prev: BizDevRunState, formData: FormData):
   }
 
   const text =
-    `Generate my BizDev report.\n` +
+    `Generate my BizDev research report.\n` +
     `Goal: win more snow removal + landscaping clients for Allsite.\n` +
     `Use proof points: KeyBank + GetGo satisfaction; certified woman-owned business.\n` +
-    `Output: Targets (multi-site), decision-maker roles, outreach drafts (email + call), what changed since last run, next 3 actions.\n` +
+    `Use live public web research when available. Start with searches like:\n` +
+    `- node scripts/research-web.mjs "multi-site retail property management snow removal landscaping Ohio Pennsylvania"\n` +
+    `- node scripts/research-web.mjs "facilities manager commercial property portfolio Pittsburgh Cincinnati Dayton Cleveland"\n` +
+    `Output: 8-12 specific companies/properties to contact, website/source, region, why they fit, likely decision-maker role/contact path, outreach drafts (email + call), what changed since last run, next 3 actions.\n` +
     `Do not repeat stale targets unless you have a new reason to revisit them.\n` +
     (notes ? `\nNOTES:\n${notes}\n` : "");
   const memoryMarkdown = await getAgentMemoryMarkdown("bizdev");

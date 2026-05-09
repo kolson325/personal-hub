@@ -302,10 +302,14 @@ async function handleJob(job) {
       if (key === "bizdev_digest") {
         const notes = String(payload.configJson ?? "").trim();
         const text =
-          `Generate my BizDev report for today.\n` +
+          `Generate my BizDev research report for today.\n` +
           `Focus: winning more snow removal + landscaping contracts for Allsite.\n` +
           `Use our proof points: KeyBank + GetGo satisfaction, certified woman-owned business.\n` +
-          `Output a crisp report with sections: Targets, Contacts/roles to pursue, Outreach drafts (email + call), Next 3 actions today.\n` +
+          `Use live public web research when available. Start by running searches such as:\n` +
+          `node scripts/research-web.mjs "multi-site retail property management snow removal landscaping Ohio Pennsylvania"\n` +
+          `node scripts/research-web.mjs "facilities manager commercial property portfolio Pittsburgh Cincinnati Dayton Cleveland"\n` +
+          `Output a crisp report with sections: Specific businesses to contact, website/source, why they fit, decision-maker role/contact path, outreach drafts (email + call), next 3 actions today.\n` +
+          `Do not give generic target categories only. Name real businesses.\n` +
           (notes ? `\nSCHEDULE_CONFIG_JSON:\n${notes}\n` : "");
         await runCodexForJob({ text, context: "bizdev", panelDataJson: "", agentType: "bizdev", sandboxOverride: "read-only" });
         return;
@@ -314,9 +318,13 @@ async function handleJob(job) {
       if (key === "devops_radar") {
         const notes = String(payload.configJson ?? "").trim();
         const text =
-          `Generate my DevOps Radar report for today.\n` +
+          `Generate my DevOps research radar report for today.\n` +
           `Keep it decisive and practical for my stack: Octopus, Jenkins, Backstage, Atlassian, Teams, JBoss, Grafana, Kibana.\n` +
-          `Output sections: What’s new, Why it matters, How to implement (steps), 30-minute starter task.\n` +
+          `Use live public web research when available. Start by running searches such as:\n` +
+          `node scripts/research-web.mjs "latest Octopus Deploy release Jenkins Backstage Grafana Kibana DevOps platform engineering"\n` +
+          `node scripts/research-web.mjs "new platform engineering tools 2026 CI CD observability internal developer portal"\n` +
+          `Output sections: what is new, source links, why it matters, how it improves our current stack, how to implement, 30-minute starter task.\n` +
+          `Do not give generic advice. Tie each recommendation to current tools we use.\n` +
           (notes ? `\nSCHEDULE_CONFIG_JSON:\n${notes}\n` : "");
         await runCodexForJob({ text, context: "devops", panelDataJson: "", agentType: "devops", sandboxOverride: "read-only" });
         return;
