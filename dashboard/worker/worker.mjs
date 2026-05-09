@@ -136,10 +136,15 @@ async function tickSchedules() {
   });
   if (due.length === 0) return;
 
-  const forceLocalKeys = new Set(["bizdev_digest", "devops_radar"]);
+  const forceLocalKeys = new Set(["bizdev_digest", "devops_radar", "gmail_triage", "combine_scan"]);
   const agentTypeByKey = new Map([
     ["bizdev_digest", "bizdev"],
     ["devops_radar", "devops"],
+    ["allsite_update", "allsite"],
+    ["budget_digest", "budget"],
+    ["gmail_triage", "gmail"],
+    ["combine_scan", "combine"],
+    ["todo_triage", "todo"],
   ]);
 
   for (const s of due) {
@@ -290,7 +295,9 @@ async function handleJob(job) {
           await finishJob(job.id, "FAILED", null, `Allsite update failed: HTTP ${res.status}\n\n${text.slice(0, 2000)}`);
           return;
         }
-        await finishJob(job.id, "SUCCEEDED", `Allsite update queued.\n\n${text.slice(0, 2000)}`, null);
+        const md = `## Allsite Hub Update\n\nAllsite update queued successfully.\n\n${text.slice(0, 2000)}`;
+        await runAgentRun("allsite", { url }, md);
+        await finishJob(job.id, "SUCCEEDED", md, null);
         return;
       } catch (e) {
         await finishJob(job.id, "FAILED", null, `Allsite update error: ${String(e?.message ?? e)}`);

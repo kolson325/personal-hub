@@ -265,6 +265,15 @@ export async function runScheduleNow(id: string) {
     requiresLocal = true;
     agentType = "devops";
   }
+  const agentTypeByKey = new Map<string, string>([
+    ["allsite_update", "allsite"],
+    ["budget_digest", "budget"],
+    ["gmail_triage", "gmail"],
+    ["combine_scan", "combine"],
+    ["todo_triage", "todo"],
+  ]);
+  if (!agentType) agentType = agentTypeByKey.get(s.key) ?? null;
+  if (s.key === "gmail_triage" || s.key === "combine_scan") requiresLocal = true;
   const memoryMarkdown = agentType ? await getAgentMemoryMarkdown(agentType) : "";
   await prisma.agentJob.create({
     data: {
