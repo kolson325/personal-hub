@@ -203,7 +203,45 @@ async function runAgentRun(agentType, input, outputMarkdown) {
     where: { id: run.id },
     data: { status: "succeeded", finishedAt: new Date(), outputMarkdown },
   });
+
+  await rememberAgentOutput(agentType, run.id, outputMarkdown).catch(() => {});
   return run.id;
+}
+
+function extractHighlights(markdown) {
+  return String(markdown ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && (/^#{1,3}\s+/.test(line) || /^[-*]\s+/.test(line) || /^\d+\.\s+/.test(line)))
+    .slice(0, 12)
+    .join("\n");
+}
+
+async function rememberAgentOutput(agentType, runId, outputMarkdown) {
+  const clean = String(outputMarkdown ?? "").trim().slice(0, 16000);
+  if (!agentType || !clean) return;
+  const highlights = extractHighlights(clean) || clean.slice(0, 2000);
+  const previous = await prisma.agentMemory.findUnique({
+    where: { agentType_key: { agentType, key: "running_context" } },
+  });
+  const runningContext = `${previous?.valueMarkdown ?? ""}\n\n## Report ${new Date().toISOString()}\n${highlights}`.trim().slice(-24000);
+  await Promise.all([
+    prisma.agentMemory.upsert({
+      where: { agentType_key: { agentType, key: "latest_report" } },
+      update: { valueMarkdown: clean, sourceRunId: runId },
+      create: { agentType, key: "latest_report", valueMarkdown: clean, sourceRunId: runId },
+    }),
+    prisma.agentMemory.upsert({
+      where: { agentType_key: { agentType, key: "latest_highlights" } },
+      update: { valueMarkdown: highlights, sourceRunId: runId },
+      create: { agentType, key: "latest_highlights", valueMarkdown: highlights, sourceRunId: runId },
+    }),
+    prisma.agentMemory.upsert({
+      where: { agentType_key: { agentType, key: "running_context" } },
+      update: { valueMarkdown: runningContext, sourceRunId: runId },
+      create: { agentType, key: "running_context", valueMarkdown: runningContext, sourceRunId: runId },
+    }),
+  ]);
 }
 
 async function handleJob(job) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { requireAgentToken } from "../_auth";
+import { rememberAgentReport } from "@/lib/agent-memory";
 
 const schema = z.object({
   id: z.string().min(1),
@@ -26,11 +27,9 @@ export async function POST(request: Request) {
   const tryUpdateAgentRun = async (job: { id: string; kind: string; payloadJson: string }, finalStatus?: "SUCCEEDED" | "FAILED", nextResult?: string | null, nextError?: string | null) => {
     if (job.kind !== "codex" && job.kind !== "automation") return;
     let agentType: string | null = null;
-    let notes: string | null = null;
     try {
       const payload = JSON.parse(job.payloadJson ?? "{}") as Record<string, unknown>;
       agentType = typeof payload.agentType === "string" ? payload.agentType : null;
-      notes = typeof payload.notes === "string" ? payload.notes : null;
     } catch {
       agentType = null;
     }
@@ -50,7 +49,16 @@ export async function POST(request: Request) {
       if (typeof nextResult === "string") patch.outputMarkdown = nextResult;
       if (typeof nextError === "string" && nextError) patch.error = nextError;
     }
-    await prisma.agentRun.update({ where: { id: run.id }, data: patch });
+    const updatedRun = await prisma.agentRun.update({ where: { id: run.id }, data: patch });
+
+    if (finalStatus === "SUCCEEDED" && typeof nextResult === "string" && nextResult.trim()) {
+      await rememberAgentReport({
+        agentType,
+        runId: updatedRun.id,
+        jobId: job.id,
+        outputMarkdown: nextResult,
+      });
+    }
   };
 
   if (status === "CLAIMED") {

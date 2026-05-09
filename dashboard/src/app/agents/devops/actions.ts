@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { getAgentMemoryMarkdown } from "@/lib/agent-memory";
 
 export type DevOpsRunState =
   | { ok: true; jobId: string }
@@ -21,15 +22,17 @@ export async function runDevOpsAgent(_prev: DevOpsRunState, formData: FormData):
   const text =
     `Generate my DevOps Radar report.\n` +
     `Stack: Octopus, Jenkins, Backstage, Atlassian, Teams, JBoss, Grafana, Kibana.\n` +
-    `Output: What’s new, why it matters, how to implement (steps), a 30-minute starter task.\n` +
+    `Output: What’s new, why it matters, how to implement (steps), what changed since last run, a 30-minute starter task.\n` +
+    `Do not repeat stale advice unless there is new evidence or a better implementation path.\n` +
     (focus ? `\nFOCUS:\n${focus}\n` : "");
+  const memoryMarkdown = await getAgentMemoryMarkdown("devops");
 
   const job = await prisma.agentJob.create({
     data: {
       kind: "codex",
       runner: "LOCAL",
       status: "QUEUED",
-      payloadJson: JSON.stringify({ text, context: "devops", agentType: "devops", focus }),
+      payloadJson: JSON.stringify({ text, context: "devops", agentType: "devops", focus, memoryMarkdown }),
     },
   });
 

@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getDevotionalToday } from "@/lib/devotional";
+import { getAgentMemoryMarkdown } from "@/lib/agent-memory";
+import { isKnownAgentId } from "@/lib/agent-profiles";
 
 export type CodexQueueState =
   | { ok: true; jobId: string }
@@ -143,15 +145,28 @@ export async function queueCodexTask(_prev: CodexQueueState, formData: FormData)
   }
 
   const panelDataJson = clampText(JSON.stringify(panelData));
+  const agentType = isKnownAgentId(context) ? context : null;
+  const memoryMarkdown = agentType ? await getAgentMemoryMarkdown(agentType) : "";
 
   const job = await prisma.agentJob.create({
     data: {
       kind: "codex",
       runner: "LOCAL",
-      payloadJson: JSON.stringify({ text, context, panelDataJson }),
+      payloadJson: JSON.stringify({ text, context, agentType, panelDataJson, memoryMarkdown }),
       status: "QUEUED",
     },
   });
+
+  if (agentType) {
+    await prisma.agentRun.create({
+      data: {
+        agentType,
+        status: "running",
+        sourceJobId: job.id,
+        inputJson: JSON.stringify({ text, context, panelData }),
+      },
+    });
+  }
 
   revalidatePath("/");
   revalidatePath("/codex");

@@ -29,6 +29,8 @@ const DASHBOARD_URL = (process.env.DASHBOARD_URL ?? "http://localhost:3000").rep
 const AGENT_TOKEN = process.env.AGENT_TOKEN ?? "";
 const AGENT_ID = process.env.AGENT_ID ?? "unknown-agent";
 const COMBINE_REPO_PATH = process.env.COMBINE_REPO_PATH ?? "";
+const AUTO_APPROVE_CODEX = String(process.env.AUTO_APPROVE_CODEX ?? "").trim() === "1";
+const AUTO_APPROVE_AUTOMATIONS = String(process.env.AUTO_APPROVE_AUTOMATIONS ?? "").trim() === "1";
 
 if (!AGENT_TOKEN.trim()) {
   console.error("Missing AGENT_TOKEN. Set it in .env.local.");
@@ -67,6 +69,17 @@ async function report(id, status, resultText, errorText, append) {
   if (!res.ok || !data?.ok) throw new Error(`Report failed: ${res.status} ${JSON.stringify(data)}`);
 }
 
+async function fetchAgentMemory(agentType) {
+  const type = String(agentType ?? "").trim();
+  if (!type) return "";
+  const res = await fetch(`${DASHBOARD_URL}/api/agent/context?agentType=${encodeURIComponent(type)}`, {
+    headers: { "x-agent-token": AGENT_TOKEN },
+  }).catch(() => null);
+  if (!res?.ok) return "";
+  const data = await res.json().catch(() => null);
+  return typeof data?.memoryMarkdown === "string" ? data.memoryMarkdown : "";
+}
+
 async function progress(id, line) {
   await report(id, "CLAIMED", line, undefined, true);
 }
@@ -94,16 +107,17 @@ async function handleJob(job) {
       return;
     }
 
-    async function runCodexForJob({ text, context, panelDataJson, sandboxOverride }) {
+    async function runCodexForJob({ text, context, panelDataJson, memoryMarkdown, agentType, sandboxOverride }) {
       const requestText = String(text ?? "").trim();
       const ctx = String(context ?? "").trim();
       const panelJson = String(panelDataJson ?? "").trim();
+      const memoryText = String(memoryMarkdown ?? "").trim() || (await fetchAgentMemory(agentType ?? ctx));
       if (!requestText) {
         await report(job.id, "FAILED", undefined, "Missing Codex request text.");
         return;
       }
 
-      const ok = await requireApproval(`Codex task requested${ctx ? ` (${ctx})` : ""}:\n${requestText}\nProceed?`);
+      const ok = AUTO_APPROVE_CODEX || (await requireApproval(`Codex task requested${ctx ? ` (${ctx})` : ""}:\n${requestText}\nProceed?`));
       if (!ok) {
         await report(job.id, "FAILED", undefined, "User declined Codex task.");
         return;
@@ -119,11 +133,14 @@ async function handleJob(job) {
       const preamble =
         `You are Kolson’s personal dashboard assistant.\n` +
         `Optimize for these goals: money, DevOps career growth, Allsite growth, health, relationship with God.\n` +
-        `Be decisive: give straight answers, a plan, and next actions (not long research). If you need info, ask only the minimum.\n` +
+        `Act like a dedicated workplace assistant for this panel, not a generic chatbot.\n` +
+        `Be decisive: give straight answers, a plan, and next actions. Compare against prior memory and avoid repeating stale advice.\n` +
+        `If you need info, ask only the minimum.\n` +
         `Use PANEL_DATA_JSON when present; do not hallucinate missing numbers.\n\n`;
 
       const fullPrompt =
         preamble +
+        (memoryText ? `AGENT_MEMORY:\n${memoryText}\n\n` : "") +
         (panelJson ? `PANEL_DATA_JSON:\n${panelJson}\n\n` : "") +
         `USER_REQUEST:\n${requestText}\n`;
 
@@ -221,6 +238,8 @@ async function handleJob(job) {
         text: payload.text,
         context: payload.context,
         panelDataJson: payload.panelDataJson,
+        memoryMarkdown: payload.memoryMarkdown,
+        agentType: payload.agentType,
         sandboxOverride: null,
       });
       return;
@@ -274,7 +293,7 @@ async function handleJob(job) {
 
     if (job.kind === "automation") {
       const key = String(payload.key ?? "").trim();
-      const ok = await requireApproval(`Run automation on laptop?\n${key || "(missing key)"}\nProceed?`);
+      const ok = AUTO_APPROVE_AUTOMATIONS || (await requireApproval(`Run automation on laptop?\n${key || "(missing key)"}\nProceed?`));
       if (!ok) {
         await report(job.id, "FAILED", undefined, "User declined automation.");
         return;
@@ -288,7 +307,7 @@ async function handleJob(job) {
           `Use our proof points: KeyBank + GetGo satisfaction, certified woman-owned business.\n` +
           `Output a crisp report with sections: Targets, Contacts/roles to pursue, Outreach drafts (email + call), Next 3 actions today.\n` +
           (notes ? `\nSCHEDULE_CONFIG_JSON:\n${notes}\n` : "");
-        await runCodexForJob({ text, context: "bizdev", panelDataJson: "", sandboxOverride: "read-only" });
+        await runCodexForJob({ text, context: "bizdev", panelDataJson: "", agentType: "bizdev", sandboxOverride: "read-only" });
         return;
       }
 
@@ -299,7 +318,7 @@ async function handleJob(job) {
           `Keep it decisive and practical for my stack: Octopus, Jenkins, Backstage, Atlassian, Teams, JBoss, Grafana, Kibana.\n` +
           `Output sections: What’s new, Why it matters, How to implement (steps), 30-minute starter task.\n` +
           (notes ? `\nSCHEDULE_CONFIG_JSON:\n${notes}\n` : "");
-        await runCodexForJob({ text, context: "devops", panelDataJson: "", sandboxOverride: "read-only" });
+        await runCodexForJob({ text, context: "devops", panelDataJson: "", agentType: "devops", sandboxOverride: "read-only" });
         return;
       }
 

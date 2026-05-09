@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { getAgentMemoryMarkdown } from "@/lib/agent-memory";
 
 function parseTimeOfDay(raw: string) {
   const m = raw.trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -91,12 +92,14 @@ const TEMPLATE_DEFS: Record<
     name: "BizDev lead research digest",
     scheduleType: "DAILY",
     timeOfDay: "07:30",
+    config: { requiresLocalCompanion: true, agentType: "bizdev" },
   },
   devops_radar: {
     key: "devops_radar",
     name: "DevOps tech radar digest",
     scheduleType: "DAILY",
     timeOfDay: "07:45",
+    config: { requiresLocalCompanion: true, agentType: "devops" },
   },
   todo_triage: {
     key: "todo_triage",
@@ -248,15 +251,26 @@ export async function runScheduleNow(id: string) {
   const s = await prisma.automationSchedule.findUnique({ where: { id } });
   if (!s) return;
   let requiresLocal = false;
+  let agentType: string | null = null;
   try {
     const cfg = s.configJson ? JSON.parse(s.configJson) : null;
     requiresLocal = Boolean(cfg?.requiresLocalCompanion);
+    agentType = typeof cfg?.agentType === "string" ? cfg.agentType : null;
   } catch {}
+  if (s.key === "bizdev_digest") {
+    requiresLocal = true;
+    agentType = "bizdev";
+  }
+  if (s.key === "devops_radar") {
+    requiresLocal = true;
+    agentType = "devops";
+  }
+  const memoryMarkdown = agentType ? await getAgentMemoryMarkdown(agentType) : "";
   await prisma.agentJob.create({
     data: {
       kind: "automation",
       scheduleId: s.id,
-      payloadJson: JSON.stringify({ key: s.key, configJson: s.configJson }),
+      payloadJson: JSON.stringify({ key: s.key, configJson: s.configJson, agentType, memoryMarkdown }),
       status: "QUEUED",
       runner: requiresLocal ? "LOCAL" : "VPS",
     },

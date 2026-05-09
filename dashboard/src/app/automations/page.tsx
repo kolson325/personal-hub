@@ -52,7 +52,7 @@ export default async function AutomationsPage() {
               Add
             </button>
             <div className="w-full text-xs text-white/60">
-              Note: schedules run inside the VPS worker container. Local-only tasks need your laptop companion (coming).
+              Local-only agent work runs through your laptop companion so reports and memory stay on your machine.
             </div>
           </form>
         </div>

@@ -72,6 +72,20 @@ model AgentRun {
   finishedAt     DateTime?
 }
 
+model AgentMemory {
+  id            String   @id @default(cuid())
+  agentType     String
+  key           String
+  valueMarkdown String
+  sourceRunId   String?
+  sourceJobId   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([agentType, key])
+  @@index([agentType, updatedAt])
+}
+
 model AgentJob {
   id          String    @id @default(cuid())
   kind        String    // e.g. "shell"

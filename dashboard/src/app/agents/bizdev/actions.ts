@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { getAgentMemoryMarkdown } from "@/lib/agent-memory";
 
 export type BizDevRunState =
   | { ok: true; jobId: string }
@@ -22,15 +23,17 @@ export async function runBizDevAgent(_prev: BizDevRunState, formData: FormData):
     `Generate my BizDev report.\n` +
     `Goal: win more snow removal + landscaping clients for Allsite.\n` +
     `Use proof points: KeyBank + GetGo satisfaction; certified woman-owned business.\n` +
-    `Output: Targets (multi-site), decision-maker roles, outreach drafts (email + call), next 3 actions.\n` +
+    `Output: Targets (multi-site), decision-maker roles, outreach drafts (email + call), what changed since last run, next 3 actions.\n` +
+    `Do not repeat stale targets unless you have a new reason to revisit them.\n` +
     (notes ? `\nNOTES:\n${notes}\n` : "");
+  const memoryMarkdown = await getAgentMemoryMarkdown("bizdev");
 
   const job = await prisma.agentJob.create({
     data: {
       kind: "codex",
       runner: "LOCAL",
       status: "QUEUED",
-      payloadJson: JSON.stringify({ text, context: "bizdev", agentType: "bizdev", notes }),
+      payloadJson: JSON.stringify({ text, context: "bizdev", agentType: "bizdev", notes, memoryMarkdown }),
     },
   });
 

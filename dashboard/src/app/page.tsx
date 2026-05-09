@@ -13,6 +13,7 @@ import { PanelCard } from "@/app/_components/PanelCard";
 import { RunAgent } from "@/app/_components/RunAgent";
 import { runBizDevAgent } from "@/app/agents/bizdev/actions";
 import { runDevOpsAgent } from "@/app/agents/devops/actions";
+import { AGENT_PROFILE_BY_ID } from "@/lib/agent-profiles";
 
 export const dynamic = "force-dynamic";
 
@@ -100,9 +101,8 @@ export default async function DashboardHome({
       take: 8,
     }),
     prisma.agentRun.findMany({
-      where: { agentType: { in: ["bizdev", "devops"] } },
       orderBy: { startedAt: "desc" },
-      take: 8,
+      take: 40,
     }),
     prisma.automationSchedule.findMany({
       where: { key: { in: ["allsite_update", "bizdev_digest", "devops_radar", "todo_triage", "services_ping", "budget_digest", "gmail_triage"] } },
@@ -129,14 +129,17 @@ export default async function DashboardHome({
   const income = monthBudget.filter((e) => e.amountCents > 0).reduce((a, e) => a + e.amountCents, 0);
   const expenses = monthBudget.filter((e) => e.amountCents < 0).reduce((a, e) => a + e.amountCents, 0);
   const net = income + expenses;
-  const bizdevLast = agentRuns.find((r) => r.agentType === "bizdev") ?? null;
-  const devopsLast = agentRuns.find((r) => r.agentType === "devops") ?? null;
-  const bizdevPreview =
-    (bizdevLast?.outputMarkdown ?? "").trim().split(/\r?\n/).filter(Boolean).slice(0, 10).join("\n") ||
-    "No reports yet.";
-  const devopsPreview =
-    (devopsLast?.outputMarkdown ?? "").trim().split(/\r?\n/).filter(Boolean).slice(0, 10).join("\n") ||
-    "No reports yet.";
+  const latestRun = (agentType: string) => agentRuns.find((r) => r.agentType === agentType) ?? null;
+  const preview = (agentType: string, fallback = "No reports yet.") =>
+    (latestRun(agentType)?.outputMarkdown ?? "").trim().split(/\r?\n/).filter(Boolean).slice(0, 10).join("\n") || fallback;
+  const bizdevLast = latestRun("bizdev");
+  const devopsLast = latestRun("devops");
+  const budgetLast = latestRun("budget");
+  const allsiteLast = latestRun("allsite");
+  const devotionalLast = latestRun("devotional");
+  const gmailLatest = latestRun("gmail") ?? gmailRun;
+  const bizdevPreview = preview("bizdev");
+  const devopsPreview = preview("devops");
 
   let activeAgentType: string | null = null;
   let activeContext: string | null = null;
@@ -150,6 +153,12 @@ export default async function DashboardHome({
   }
   const bizdevLive = activeCodex && (activeAgentType === "bizdev" || activeContext === "bizdev") ? (activeCodex.resultText ?? "") : null;
   const devopsLive = activeCodex && (activeAgentType === "devops" || activeContext === "devops") ? (activeCodex.resultText ?? "") : null;
+  const commandAgents = ["bizdev", "devops", "budget", "allsite", "gmail", "todo"].map((id) => ({
+    id,
+    profile: AGENT_PROFILE_BY_ID.get(id),
+    run: latestRun(id),
+    active: activeAgentType === id || activeContext === id,
+  }));
 
   const panels: Partial<Record<PanelId, ReactNode>> = {
     today: (
@@ -215,6 +224,34 @@ export default async function DashboardHome({
                   ))
                 )}
               </ul>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Agent command board</div>
+              <Link className="text-xs text-white/70 hover:text-white" href="/automations">
+                Schedule →
+              </Link>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {commandAgents.map(({ id, profile, run, active }) => (
+                <Link
+                  key={id}
+                  href={`/agents/${id}`}
+                  className="rounded-lg border border-white/10 bg-white/[0.03] p-3 hover:bg-white/[0.07]"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="truncate text-sm font-medium">{profile?.shortTitle ?? id}</div>
+                    <span className={active ? "text-xs text-emerald-300" : "text-xs text-white/45"}>
+                      {active ? "running" : run?.status ?? "idle"}
+                    </span>
+                  </div>
+                  <div className="mt-1 line-clamp-2 text-xs text-white/55">
+                    {run?.outputMarkdown ? run.outputMarkdown.replace(/\s+/g, " ").slice(0, 130) : profile?.mission}
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
         </PanelCard>
@@ -401,7 +438,14 @@ export default async function DashboardHome({
         <PanelCard
           title="Daily devotional"
           subtitle="A short biblical teaching for the day."
-          right={<div className="text-xs text-white/50">{devotional.source === "thebibleapi" ? "source: web" : "source: offline"}</div>}
+          right={
+            <div className="flex items-center gap-2">
+              <div className="text-xs text-white/50">{devotional.source === "thebibleapi" ? "source: web" : "source: offline"}</div>
+              <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/agents/devotional">
+                Agent
+              </Link>
+            </div>
+          }
         >
           <div className="rounded-xl border border-white/10 bg-black/20 p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-white/60">{devotional.reference}</div>
@@ -409,6 +453,11 @@ export default async function DashboardHome({
             <div className="mt-3 text-xs text-white/60">Takeaway: {devotional.takeaway}</div>
           </div>
           <div className="mt-3">
+            {devotionalLast?.outputMarkdown ? (
+              <pre className="mb-3 max-h-36 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
+                {devotionalLast.outputMarkdown}
+              </pre>
+            ) : null}
             <AskCodex
               title="Ask Codex (apply this)"
               context="devotional"
@@ -436,6 +485,9 @@ export default async function DashboardHome({
               </a>
               <Link className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90" href="/central-hub">
                 Embed
+              </Link>
+              <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/agents/allsite">
+                Agent
               </Link>
             </div>
           }
@@ -531,6 +583,11 @@ export default async function DashboardHome({
               </div>
 
               <div className="mt-4">
+                {allsiteLast?.outputMarkdown ? (
+                  <pre className="mb-4 max-h-44 overflow-auto whitespace-pre-wrap rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-50">
+                    {allsiteLast.outputMarkdown}
+                  </pre>
+                ) : null}
                 <AskCodex
                   title="Ask Codex (allsite)"
                   context="allsite"
@@ -549,9 +606,14 @@ export default async function DashboardHome({
           title="Budget (this month)"
           subtitle="Income, expenses, and net."
           right={
-            <Link className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90" href="/budget">
-              Open
-            </Link>
+            <div className="flex gap-2">
+              <Link className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-white/90" href="/budget">
+                Open
+              </Link>
+              <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/agents/budget">
+                Agent
+              </Link>
+            </div>
           }
         >
           <div className="grid gap-3 sm:grid-cols-3">
@@ -569,6 +631,11 @@ export default async function DashboardHome({
             </div>
           </div>
           <div className="mt-4">
+            {budgetLast?.outputMarkdown ? (
+              <pre className="mb-4 max-h-44 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
+                {budgetLast.outputMarkdown}
+              </pre>
+            ) : null}
             <AskCodex title="Ask Codex (budget)" context="budget" action={queueCodexTask} />
           </div>
         </PanelCard>
@@ -580,15 +647,25 @@ export default async function DashboardHome({
           title="Inbox (Gmail)"
           subtitle="Triage and turn important items into tasks."
           right={
-            <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/inbox">
-              Open
-            </Link>
+            <div className="flex gap-2">
+              <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/inbox">
+                Open
+              </Link>
+              <Link className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10" href="/agents/gmail">
+                Agent
+              </Link>
+            </div>
           }
         >
           <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/60">
-            Last triage: {gmailRun ? gmailRun.startedAt.toISOString().replace("T", " ").slice(0, 19) : "—"}
+            Last triage: {gmailLatest ? gmailLatest.startedAt.toISOString().replace("T", " ").slice(0, 19) : "—"}
           </div>
           <div className="mt-4">
+            {gmailLatest?.outputMarkdown ? (
+              <pre className="mb-4 max-h-44 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
+                {gmailLatest.outputMarkdown}
+              </pre>
+            ) : null}
             <AskCodex title="Ask Codex (gmail)" context="gmail" action={queueCodexTask} />
           </div>
           <div className="mt-3 text-xs text-white/50">
