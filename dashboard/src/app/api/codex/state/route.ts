@@ -46,6 +46,9 @@ export async function GET() {
 
   const activePayload =
     active ? safeJsonParse<{ text?: string; context?: string }>(active.payloadJson) ?? {} : null;
+  const companionAgeSeconds = hb
+    ? Math.max(0, Math.floor((Date.now() - hb.lastSeenAt.getTime()) / 1000))
+    : null;
 
   return NextResponse.json({
     ok: true,
@@ -61,6 +64,13 @@ export async function GET() {
         }
       : null,
     recent: mappedRecent,
-    companion: hb ? { agentId: hb.agentId, lastSeenAt: hb.lastSeenAt } : null,
+    companion: hb
+      ? {
+          agentId: hb.agentId,
+          lastSeenAt: hb.lastSeenAt,
+          ageSeconds: companionAgeSeconds,
+          connected: companionAgeSeconds !== null && companionAgeSeconds < 120,
+        }
+      : null,
   });
 }

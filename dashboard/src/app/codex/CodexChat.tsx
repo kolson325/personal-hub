@@ -20,7 +20,7 @@ type CodexState = {
   ok: true;
   active: CodexJob | null;
   recent: CodexJob[];
-  companion: { agentId: string; lastSeenAt: string } | null;
+  companion: { agentId: string; lastSeenAt: string; ageSeconds?: number; connected?: boolean } | null;
 };
 
 function formatTs(ts: string) {
@@ -236,9 +236,16 @@ export function CodexChat({
 
   const companionStatus = useMemo(() => {
     const hb = remote?.companion ?? null;
-    if (!hb) return { ok: false, label: "not connected", detail: "Start your laptop companion: `cd dashboard && npm run companion`" };
-    const ageMs = nowMs - new Date(hb.lastSeenAt).getTime();
-    const ok = Number.isFinite(ageMs) && ageMs < 15_000;
+    if (!hb) {
+      return {
+        ok: false,
+        label: "not connected",
+        detail: "Companion auto-starts with your laptop. If this persists, restart the laptop companion service.",
+      };
+    }
+    const apiAgeSeconds = typeof hb.ageSeconds === "number" ? hb.ageSeconds : null;
+    const ageMs = apiAgeSeconds !== null ? apiAgeSeconds * 1000 : nowMs - new Date(hb.lastSeenAt).getTime();
+    const ok = typeof hb.connected === "boolean" ? hb.connected : Number.isFinite(ageMs) && ageMs < 120_000;
     const secs = Math.max(0, Math.floor(ageMs / 1000));
     return {
       ok,

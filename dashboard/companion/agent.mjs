@@ -81,6 +81,7 @@ async function fetchAgentMemory(agentType) {
 }
 
 async function progress(id, line) {
+  await heartbeat().catch(() => null);
   await report(id, "CLAIMED", line, undefined, true);
 }
 
@@ -210,7 +211,7 @@ async function handleJob(job) {
         }
       });
 
-      const heartbeat = setInterval(() => {
+      const progressTimer = setInterval(() => {
         if (Date.now() - lastProgressAt > 10_000) {
           void progress(job.id, "…still working…");
           lastProgressAt = Date.now();
@@ -222,7 +223,7 @@ async function handleJob(job) {
         child.on("error", () => resolve(1));
       });
 
-      clearInterval(heartbeat);
+      clearInterval(progressTimer);
       stdout.close();
       stderr.close();
 
@@ -352,6 +353,11 @@ async function handleJob(job) {
 
 console.log(`Companion running as ${AGENT_ID}`);
 console.log(`Server: ${DASHBOARD_URL}`);
+
+const heartbeatTimer = setInterval(() => {
+  void heartbeat().catch((e) => console.error(`Heartbeat failed: ${String(e?.message ?? e)}`));
+}, 5000);
+heartbeatTimer.unref?.();
 
 // Poll loop
 while (true) {
